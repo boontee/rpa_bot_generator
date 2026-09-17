@@ -1,0 +1,210 @@
+defVar --name sourceFile --type String
+defVar --name targetFile --type String
+defVar --name reportFile --type String
+defVar --name keyColumn --type Numeric
+defVar --name compareColumn --type Numeric
+defVar --name sourceApp --type String
+defVar --name targetApp --type String
+defVar --name reportApp --type String
+defVar --name sourceLastRow --type Numeric
+defVar --name targetLastRow --type Numeric
+defVar --name sourceRow --type Numeric
+defVar --name targetRow --type Numeric
+defVar --name reportRow --type Numeric
+defVar --name sourceKey --type String
+defVar --name sourceValue --type String
+defVar --name targetKey --type String
+defVar --name targetValue --type String
+defVar --name matchFound --type Boolean
+defVar --name fileExists --type Boolean
+defVar --name matchedCount --type Numeric
+defVar --name mismatchCount --type Numeric
+defVar --name missingInTargetCount --type Numeric
+defVar --name missingInSourceCount --type Numeric
+
+bindProcessVariables --mappings "{\"sourceFile\":\"${sourceFile}\",\"targetFile\":\"${targetFile}\",\"reportFile\":\"${reportFile}\",\"keyColumn\":\"${keyColumn}\",\"compareColumn\":\"${compareColumn}\"}"
+
+goSub --label Init
+goSub --label LoadSourceFile
+goSub --label LoadTargetFile
+goSub --label Reconcile
+goSub --label FlagMissingInSource
+goSub --label WriteReportSummary
+goSub --label Cleanup
+
+beginSub --name Init
+  logMessage --message "→ Init: start" --type "Info"
+  setVar --name "${matchedCount}" --value "0"
+  setVar --name "${mismatchCount}" --value "0"
+  setVar --name "${missingInTargetCount}" --value "0"
+  setVar --name "${missingInSourceCount}" --value "0"
+  setVar --name "${reportRow}" --value "2"
+  logMessage --message "← Init: counters reset" --type "Info"
+endSub
+
+beginSub --name LoadSourceFile
+  logMessage --message "→ LoadSourceFile: opening ${sourceFile}" --type "Info"
+
+  fileExists --path "${sourceFile}"   fileExists=value
+  if --left "${fileExists}" --operator "Equal_To" --right "False"
+    logMessage --message "Source file not found: ${sourceFile}" --type "Error"
+    goSub --label Cleanup
+    throwError --message "Source file not found: ${sourceFile}"
+  endIf
+
+  excelOpen --path "${sourceFile}" --readOnly true   sourceApp=value
+  excelGetLastRow --application "${sourceApp}" --sheet "Sheet1"   sourceLastRow=value
+
+  if --left "${sourceLastRow}" --operator "Less_Than" --right "2"
+    logMessage --message "Source file has no data rows (header only)" --type "Error"
+    goSub --label Cleanup
+    throwError --message "Source file is empty"
+  endIf
+
+  logMessage --message "← LoadSourceFile: ${sourceLastRow} rows found (incl. header)" --type "Info"
+endSub
+
+beginSub --name LoadTargetFile
+  logMessage --message "→ LoadTargetFile: opening ${targetFile}" --type "Info"
+
+  fileExists --path "${targetFile}"   fileExists=value
+  if --left "${fileExists}" --operator "Equal_To" --right "False"
+    logMessage --message "Target file not found: ${targetFile}" --type "Error"
+    goSub --label Cleanup
+    throwError --message "Target file not found: ${targetFile}"
+  endIf
+
+  excelOpen --path "${targetFile}" --readOnly true   targetApp=value
+  excelGetLastRow --application "${targetApp}" --sheet "Sheet1"   targetLastRow=value
+
+  if --left "${targetLastRow}" --operator "Less_Than" --right "2"
+    logMessage --message "Target file has no data rows (header only)" --type "Warning"
+  endIf
+
+  logMessage --message "← LoadTargetFile: ${targetLastRow} rows found (incl. header)" --type "Info"
+endSub
+
+beginSub --name Reconcile
+  logMessage --message "→ Reconcile: comparing source rows 2–${sourceLastRow} against target" --type "Info"
+
+  excelOpen --path "${reportFile}" --readOnly false   reportApp=value
+  excelWriteCell --application "${reportApp}" --sheet "Sheet1" --row 1 --column 1 --value "Key"
+  excelWriteCell --application "${reportApp}" --sheet "Sheet1" --row 1 --column 2 --value "Source Value"
+  excelWriteCell --application "${reportApp}" --sheet "Sheet1" --row 1 --column 3 --value "Target Value"
+  excelWriteCell --application "${reportApp}" --sheet "Sheet1" --row 1 --column 4 --value "Status"
+
+  for --variable ${sourceRow} --from 2 --to ${sourceLastRow} --step 1
+    excelReadCell --application "${sourceApp}" --sheet "Sheet1" --row ${sourceRow} --column ${keyColumn}   sourceKey=value
+    excelReadCell --application "${sourceApp}" --sheet "Sheet1" --row ${sourceRow} --column ${compareColumn}   sourceValue=value
+
+    setVar --name "${matchFound}" --value "False"
+
+    for --variable ${targetRow} --from 2 --to ${targetLastRow} --step 1
+      excelReadCell --application "${targetApp}" --sheet "Sheet1" --row ${targetRow} --column ${keyColumn}   targetKey=value
+
+      if --left "${targetKey}" --operator "Equal_To" --right "${sourceKey}"
+        excelReadCell --application "${targetApp}" --sheet "Sheet1" --row ${targetRow} --column ${compareColumn}   targetValue=value
+        setVar --name "${matchFound}" --value "True"
+        break
+      endIf
+    next
+
+    if --left "${matchFound}" --operator "Equal_To" --right "True"
+      if --left "${sourceValue}" --operator "Equal_To" --right "${targetValue}"
+        excelWriteCell --application "${reportApp}" --sheet "Sheet1" --row ${reportRow} --column 1 --value "${sourceKey}"
+        excelWriteCell --application "${reportApp}" --sheet "Sheet1" --row ${reportRow} --column 2 --value "${sourceValue}"
+        excelWriteCell --application "${reportApp}" --sheet "Sheet1" --row ${reportRow} --column 3 --value "${targetValue}"
+        excelWriteCell --application "${reportApp}" --sheet "Sheet1" --row ${reportRow} --column 4 --value "MATCHED"
+        setVar --name "${matchedCount}" --value "${matchedCount} + 1"
+      else
+        excelWriteCell --application "${reportApp}" --sheet "Sheet1" --row ${reportRow} --column 1 --value "${sourceKey}"
+        excelWriteCell --application "${reportApp}" --sheet "Sheet1" --row ${reportRow} --column 2 --value "${sourceValue}"
+        excelWriteCell --application "${reportApp}" --sheet "Sheet1" --row ${reportRow} --column 3 --value "${targetValue}"
+        excelWriteCell --application "${reportApp}" --sheet "Sheet1" --row ${reportRow} --column 4 --value "MISMATCH"
+        setVar --name "${mismatchCount}" --value "${mismatchCount} + 1"
+        logMessage --message "MISMATCH key=${sourceKey} source=${sourceValue} target=${targetValue}" --type "Warning"
+      endIf
+    else
+      excelWriteCell --application "${reportApp}" --sheet "Sheet1" --row ${reportRow} --column 1 --value "${sourceKey}"
+      excelWriteCell --application "${reportApp}" --sheet "Sheet1" --row ${reportRow} --column 2 --value "${sourceValue}"
+      excelWriteCell --application "${reportApp}" --sheet "Sheet1" --row ${reportRow} --column 3 --value ""
+      excelWriteCell --application "${reportApp}" --sheet "Sheet1" --row ${reportRow} --column 4 --value "MISSING IN TARGET"
+      setVar --name "${missingInTargetCount}" --value "${missingInTargetCount} + 1"
+      logMessage --message "MISSING IN TARGET key=${sourceKey}" --type "Warning"
+    endIf
+
+    setVar --name "${reportRow}" --value "${reportRow} + 1"
+  next
+
+  logMessage --message "← Reconcile: done" --type "Info"
+endSub
+
+beginSub --name FlagMissingInSource
+  logMessage --message "→ FlagMissingInSource: scanning target for unmatched rows" --type "Info"
+
+  for --variable ${targetRow} --from 2 --to ${targetLastRow} --step 1
+    excelReadCell --application "${targetApp}" --sheet "Sheet1" --row ${targetRow} --column ${keyColumn}   targetKey=value
+    excelReadCell --application "${targetApp}" --sheet "Sheet1" --row ${targetRow} --column ${compareColumn}   targetValue=value
+
+    setVar --name "${matchFound}" --value "False"
+
+    for --variable ${sourceRow} --from 2 --to ${sourceLastRow} --step 1
+      excelReadCell --application "${sourceApp}" --sheet "Sheet1" --row ${sourceRow} --column ${keyColumn}   sourceKey=value
+      if --left "${sourceKey}" --operator "Equal_To" --right "${targetKey}"
+        setVar --name "${matchFound}" --value "True"
+        break
+      endIf
+    next
+
+    if --left "${matchFound}" --operator "Equal_To" --right "False"
+      excelWriteCell --application "${reportApp}" --sheet "Sheet1" --row ${reportRow} --column 1 --value "${targetKey}"
+      excelWriteCell --application "${reportApp}" --sheet "Sheet1" --row ${reportRow} --column 2 --value ""
+      excelWriteCell --application "${reportApp}" --sheet "Sheet1" --row ${reportRow} --column 3 --value "${targetValue}"
+      excelWriteCell --application "${reportApp}" --sheet "Sheet1" --row ${reportRow} --column 4 --value "MISSING IN SOURCE"
+      setVar --name "${missingInSourceCount}" --value "${missingInSourceCount} + 1"
+      setVar --name "${reportRow}" --value "${reportRow} + 1"
+      logMessage --message "MISSING IN SOURCE key=${targetKey}" --type "Warning"
+    endIf
+  next
+
+  logMessage --message "← FlagMissingInSource: done" --type "Info"
+endSub
+
+beginSub --name WriteReportSummary
+  logMessage --message "→ WriteReportSummary: writing totals" --type "Info"
+
+  setVar --name "${reportRow}" --value "${reportRow} + 2"
+  excelWriteCell --application "${reportApp}" --sheet "Sheet1" --row ${reportRow} --column 1 --value "SUMMARY"
+  setVar --name "${reportRow}" --value "${reportRow} + 1"
+  excelWriteCell --application "${reportApp}" --sheet "Sheet1" --row ${reportRow} --column 1 --value "Matched"
+  excelWriteCell --application "${reportApp}" --sheet "Sheet1" --row ${reportRow} --column 2 --value "${matchedCount}"
+  setVar --name "${reportRow}" --value "${reportRow} + 1"
+  excelWriteCell --application "${reportApp}" --sheet "Sheet1" --row ${reportRow} --column 1 --value "Mismatch"
+  excelWriteCell --application "${reportApp}" --sheet "Sheet1" --row ${reportRow} --column 2 --value "${mismatchCount}"
+  setVar --name "${reportRow}" --value "${reportRow} + 1"
+  excelWriteCell --application "${reportApp}" --sheet "Sheet1" --row ${reportRow} --column 1 --value "Missing In Target"
+  excelWriteCell --application "${reportApp}" --sheet "Sheet1" --row ${reportRow} --column 2 --value "${missingInTargetCount}"
+  setVar --name "${reportRow}" --value "${reportRow} + 1"
+  excelWriteCell --application "${reportApp}" --sheet "Sheet1" --row ${reportRow} --column 1 --value "Missing In Source"
+  excelWriteCell --application "${reportApp}" --sheet "Sheet1" --row ${reportRow} --column 2 --value "${missingInSourceCount}"
+
+  excelSave --application "${reportApp}"
+
+  logMessage --message "RECONCILIATION COMPLETE matched=${matchedCount} mismatch=${mismatchCount} missingInTarget=${missingInTargetCount} missingInSource=${missingInSourceCount}" --type "Info"
+
+  setProcessVariable --name "matchedCount" --value "${matchedCount}"
+  setProcessVariable --name "mismatchCount" --value "${mismatchCount}"
+  setProcessVariable --name "missingInTargetCount" --value "${missingInTargetCount}"
+  setProcessVariable --name "missingInSourceCount" --value "${missingInSourceCount}"
+
+  logMessage --message "← WriteReportSummary: done — report saved to ${reportFile}" --type "Info"
+endSub
+
+beginSub --name Cleanup
+  logMessage --message "→ Cleanup: closing all workbooks" --type "Info"
+  excelClose --application "${sourceApp}"
+  excelClose --application "${targetApp}"
+  excelClose --application "${reportApp}"
+  logMessage --message "← Cleanup: done" --type "Info"
+endSub
+* 30.0.2

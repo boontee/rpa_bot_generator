@@ -1,0 +1,72 @@
+defVar --name portalUrl --type String
+defVar --name username --type String
+defVar --name password --type String
+defVar --name outputStatus --type String
+defVar --name pageTitle --type String
+defVar --name is2fa --type Boolean
+defVar --name retryCount --type Numeric
+defVar --name loginSuccess --type Boolean
+
+bindProcessVariables --mappings "{\"portalUrl\":\"${portalUrl}\",\"username\":\"${username}\",\"password\":\"${password}\"}"
+
+goSub --label Init
+goSub --label Login
+goSub --label VerifySession
+goSub --label Cleanup
+
+beginSub --name Init
+  logMessage --message "→ Init: start" --type "Info"
+  setVar --name "${retryCount}" --value "0"
+  setVar --name "${loginSuccess}" --value "False"
+  webStart --name web01 --type "Chrome" --userprofilepreferences "AutomationOptimized"
+  logMessage --message "← Init: browser opened" --type "Info"
+endSub
+
+beginSub --name Login
+  logMessage --message "→ Login: navigating to ${portalUrl}" --type "Info"
+
+  webNavigate --url "${portalUrl}"
+  webWaitElement --selector "CssSelector" --css "#username" --timeout "00:00:30"   loginSuccess=value
+
+  if --left "${loginSuccess}" --operator "Equal_To" --right "False"
+    logMessage --message "Login page did not load within 30s" --type "Error"
+    goSub --label Cleanup
+    throwError --message "Login page unavailable: ${portalUrl}"
+  endIf
+
+  webSet --value "${username}" --selector "CssSelector" --css "#username" --simulatehuman
+  webSet --value "${password}" --selector "CssSelector" --css "#password" --simulatehuman
+  webClick --selector "CssSelector" --css "#login-btn" --simulatehuman
+
+  webWaitElement --selector "CssSelector" --css "#2fa-container" --timeout "00:00:05"   is2fa=value
+  if --left "${is2fa}" --operator "Equal_To" --right "True"
+    logMessage --message "2FA challenge detected — bot cannot proceed" --type "Error"
+    goSub --label Cleanup
+    throwError --message "2FA required: configure bot service account to bypass MFA"
+  endIf
+
+  webWaitElement --selector "CssSelector" --css "#dashboard, #main-content, nav.main-nav" --timeout "00:00:20"   loginSuccess=value
+
+  if --left "${loginSuccess}" --operator "Equal_To" --right "False"
+    logMessage --message "Login may have failed — dashboard not detected" --type "Warning"
+  endIf
+
+  logMessage --message "← Login: complete" --type "Info"
+endSub
+
+beginSub --name VerifySession
+  logMessage --message "→ VerifySession: start" --type "Info"
+
+  webGet --selector "CssSelector" --css "title"   pageTitle=value
+  logMessage --message "Page title: ${pageTitle}" --type "Info"
+
+  setProcessVariable --name "outputStatus" --value "Success"
+  logMessage --message "← VerifySession: session confirmed" --type "Info"
+endSub
+
+beginSub --name Cleanup
+  logMessage --message "→ Cleanup: closing browser" --type "Info"
+  webClose --name web01
+  logMessage --message "← Cleanup: done" --type "Info"
+endSub
+* 30.0.2

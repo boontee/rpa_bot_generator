@@ -1,0 +1,84 @@
+defVar --name inputFile --type String
+defVar --name outputFile --type String
+defVar --name sheetName --type String
+defVar --name excelApp --type String
+defVar --name lastRow --type Numeric
+defVar --name currentRow --type Numeric
+defVar --name colA --type String
+defVar --name colB --type Numeric
+defVar --name colC --type String
+defVar --name summaryRow --type Numeric
+defVar --name totalAmount --type Numeric
+defVar --name fileExists --type Boolean
+
+bindProcessVariables --mappings "{\"inputFile\":\"${inputFile}\",\"outputFile\":\"${outputFile}\"}"
+
+goSub --label Init
+goSub --label ReadRows
+goSub --label WriteSummary
+goSub --label Cleanup
+
+beginSub --name Init
+  logMessage --message "→ Init: start" --type "Info"
+
+  setVar --name "${sheetName}" --value "Sheet1"
+  setVar --name "${currentRow}" --value "2"
+  setVar --name "${totalAmount}" --value "0"
+
+  fileExists --path "${inputFile}"   fileExists=value
+  if --left "${fileExists}" --operator "Equal_To" --right "False"
+    logMessage --message "Input file not found: ${inputFile}" --type "Error"
+    throwError --message "Input file not found: ${inputFile}"
+  endIf
+
+  excelOpen --path "${inputFile}" --readOnly false   excelApp=value
+  logMessage --message "← Init: opened ${inputFile}" --type "Info"
+endSub
+
+beginSub --name ReadRows
+  logMessage --message "→ ReadRows: reading ${sheetName}" --type "Info"
+
+  excelGetLastRow --application "${excelApp}" --sheet "${sheetName}"   lastRow=value
+  logMessage --message "Last row with data: ${lastRow}" --type "Info"
+
+  if --left "${lastRow}" --operator "Less_Than" --right "2"
+    logMessage --message "No data rows found (header only)" --type "Warning"
+    setProcessVariable --name "rowsProcessed" --value "0"
+    goSub --label Cleanup
+    throwError --message "Input file has no data rows"
+  endIf
+
+  setVar --name "${currentRow}" --value "2"
+
+  for --variable ${currentRow} --from 2 --to ${lastRow} --step 1
+    excelReadCell --application "${excelApp}" --sheet "${sheetName}" --row ${currentRow} --column 1   colA=value
+    excelReadCell --application "${excelApp}" --sheet "${sheetName}" --row ${currentRow} --column 2   colB=value
+    excelReadCell --application "${excelApp}" --sheet "${sheetName}" --row ${currentRow} --column 3   colC=value
+
+    logMessage --message "Row ${currentRow}: id=${colA} amount=${colB} date=${colC}" --type "Info"
+
+    setVar --name "${totalAmount}" --value "${totalAmount} + ${colB}"
+  next
+
+  logMessage --message "← ReadRows: processed rows 2–${lastRow}, totalAmount=${totalAmount}" --type "Info"
+  setProcessVariable --name "rowsProcessed" --value "${lastRow} - 1"
+endSub
+
+beginSub --name WriteSummary
+  logMessage --message "→ WriteSummary: writing to Summary sheet" --type "Info"
+
+  excelWriteCell --application "${excelApp}" --sheet "Summary" --row 1 --column 1 --value "Total Rows"
+  excelWriteCell --application "${excelApp}" --sheet "Summary" --row 1 --column 2 --value "Total Amount"
+  excelWriteCell --application "${excelApp}" --sheet "Summary" --row 2 --column 1 --value "${lastRow} - 1"
+  excelWriteCell --application "${excelApp}" --sheet "Summary" --row 2 --column 2 --value "${totalAmount}"
+
+  excelSave --application "${excelApp}"
+  logMessage --message "← WriteSummary: saved" --type "Info"
+endSub
+
+beginSub --name Cleanup
+  logMessage --message "→ Cleanup: closing workbook" --type "Info"
+  excelClose --application "${excelApp}"
+  logMessage --message "← Cleanup: done" --type "Info"
+endSub
+* 30.0.2

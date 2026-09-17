@@ -1,0 +1,111 @@
+defVar --name queueName --type String
+defVar --name mqServer --type String
+defVar --name portalUrl --type String
+defVar --name username --type String
+defVar --name password --type String
+defVar --name queueConn --type QueueConnection
+defVar --name queueItem --type MessageQueue
+defVar --name hasItem --type Boolean
+defVar --name itemPayload --type String
+defVar --name customerId --type String
+defVar --name orderId --type String
+defVar --name orderAmount --type Numeric
+defVar --name errorMessage --type String
+defVar --name processedCount --type Numeric
+defVar --name failedCount --type Numeric
+defVar --name isLoggedIn --type Boolean
+
+bindProcessVariables --mappings "{\"queueName\":\"${queueName}\",\"mqServer\":\"${mqServer}\",\"portalUrl\":\"${portalUrl}\",\"username\":\"${username}\",\"password\":\"${password}\"}"
+
+goSub --label Init
+goSub --label ConnectQueue
+goSub --label ProcessLoop
+goSub --label Cleanup
+
+beginSub --name Init
+  logMessage --message "→ Init: start" --type "Info"
+  setVar --name "${processedCount}" --value "0"
+  setVar --name "${failedCount}" --value "0"
+  setVar --name "${isLoggedIn}" --value "False"
+  webStart --name web01 --type "Chrome" --userprofilepreferences "AutomationOptimized"
+  logMessage --message "← Init: done" --type "Info"
+endSub
+
+beginSub --name ConnectQueue
+  logMessage --message "→ ConnectQueue: connecting to ${queueName} on ${mqServer}" --type "Info"
+  mqConnect --queueName "${queueName}" --server "${mqServer}"   queueConn=value
+  logMessage --message "← ConnectQueue: connected" --type "Info"
+endSub
+
+beginSub --name Login
+  logMessage --message "→ Login: logging in as ${username}" --type "Info"
+  webNavigate --url "${portalUrl}"
+  webWaitElement --selector "CssSelector" --css "#username" --timeout "00:00:30"
+  webSet --value "${username}" --selector "CssSelector" --css "#username" --simulatehuman
+  webSet --value "${password}" --selector "CssSelector" --css "#password" --simulatehuman
+  webClick --selector "CssSelector" --css "#login-btn" --simulatehuman
+  webWaitElement --selector "CssSelector" --css "#dashboard" --timeout "00:00:20"   isLoggedIn=value
+  if --left "${isLoggedIn}" --operator "Equal_To" --right "False"
+    logMessage --message "Login failed — cannot process queue items" --type "Error"
+    goSub --label Cleanup
+    throwError --message "ERP login failed"
+  endIf
+  logMessage --message "← Login: success" --type "Info"
+endSub
+
+beginSub --name ProcessLoop
+  logMessage --message "→ ProcessLoop: starting queue drain" --type "Info"
+
+  goSub --label Login
+
+  while --left "True" --operator "Equal_To" --right "True"
+    mqGet --connection "${queueConn}" --timeout "00:00:10"   queueItem=value hasItem=value
+
+    if --left "${hasItem}" --operator "Equal_To" --right "False"
+      logMessage --message "Queue empty — exiting loop" --type "Info"
+      break
+    endIf
+
+    logMessage --message "Processing queue item" --type "Info"
+    goSub --label ProcessItem
+  endWhile
+
+  logMessage --message "← ProcessLoop: done — processed=${processedCount} failed=${failedCount}" --type "Info"
+  setProcessVariable --name "processedCount" --value "${processedCount}"
+  setProcessVariable --name "failedCount" --value "${failedCount}"
+endSub
+
+beginSub --name ProcessItem
+  logMessage --message "→ ProcessItem: start" --type "Info"
+
+  mqGetMessageContent --message "${queueItem}"   itemPayload=value
+
+  logMessage --message "Payload received: ${itemPayload}" --type "Info"
+
+  webWaitElement --selector "CssSelector" --css "#order-id-field" --timeout "00:00:20"
+  webSet --value "${orderId}" --selector "CssSelector" --css "#order-id-field" --simulatehuman
+  webSet --value "${orderAmount}" --selector "CssSelector" --css "#amount-field" --simulatehuman
+  webClick --selector "CssSelector" --css "#submit-order-btn" --simulatehuman
+  webWaitElement --selector "CssSelector" --css "#confirmation-message" --timeout "00:00:15"   hasItem=value
+
+  if --left "${hasItem}" --operator "Equal_To" --right "True"
+    logMessage --message "Order ${orderId} submitted successfully" --type "Info"
+    mqComplete --connection "${queueConn}" --message "${queueItem}"
+    setVar --name "${processedCount}" --value "${processedCount} + 1"
+  else
+    setVar --name "${errorMessage}" --value "Confirmation not received for order ${orderId}"
+    logMessage --message "${errorMessage}" --type "Warning"
+    mqFail --connection "${queueConn}" --message "${queueItem}" --reason "${errorMessage}"
+    setVar --name "${failedCount}" --value "${failedCount} + 1"
+  endIf
+
+  logMessage --message "← ProcessItem: done" --type "Info"
+endSub
+
+beginSub --name Cleanup
+  logMessage --message "→ Cleanup: start" --type "Info"
+  webClose --name web01
+  mqClose --connection "${queueConn}"
+  logMessage --message "← Cleanup: done — processed=${processedCount} failed=${failedCount}" --type "Info"
+endSub
+* 30.0.2
