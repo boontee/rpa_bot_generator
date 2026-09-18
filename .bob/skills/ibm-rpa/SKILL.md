@@ -21,7 +21,8 @@ Command output is captured with the `variableName=value` suffix.
 commandName --param1 "value1" --param2 "value2"   outputVar=value
 ```
 
-See `wal-reference.md` for the full command reference, organized by category.
+See `commands_kb.md` for the comprehensive IBM RPA command knowledge base (27 categories).
+See `wal-reference.md` for a compact command reference with inline code snippets.
 See `examples/` for complete, working script patterns.
 
 ## Mandatory Script Structure
