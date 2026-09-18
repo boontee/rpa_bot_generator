@@ -1,0 +1,43 @@
+�
+defVar --name number1 --type Numeric
+defVar --name number2 --type Numeric
+defVar --name sum --type Numeric
+defVar --name average --type Numeric
+
+goSub --label Init
+goSub --label Average
+goSub --label PrintResult
+goSub --label Cleanup
+
+beginSub --name Init
+logMessage --message "Init: start" --type "Info"
+setVar --name "${number1}" --value 10
+setVar --name "${number2}" --value 25
+setVar --name "${sum}" --value 0
+setVar --name "${average}" --value 0
+logMessage --message "Init: done" --type "Info"
+endSub
+
+beginSub --name Average
+logMessage --message "Average: start" --type "Info"
+evaluate --expression "${number1} + ${number2}" sum=value
+evaluate --expression "${sum} / 2" average=value
+logMessage --message "Average: (${number1} + ${number2}) / 2 = ${average}" --type "Info"
+logMessage --message "Average: done" --type "Info"
+endSub
+
+beginSub --name PrintResult
+logMessage --message "PrintResult: start" --type "Info"
+logMessage --message "Average = ${average}" --type "Info"
+logMessage --message "PrintResult: done" --type "Info"
+endSub
+
+beginSub --name ErrorHandler
+logMessage --message "ErrorHandler: error occurred" --type "Error"
+goSub --label Cleanup
+failTest --message "An unexpected error occurred"
+endSub
+
+beginSub --name Cleanup
+logMessage --message "Cleanup: done" --type "Info"
+endSub*30.0.3.0

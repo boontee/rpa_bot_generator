@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "rpa-studio-log": {
+      "command": "node",
+      "args": ["C:\\Workspaces\\rpa_bot_generator\\tools\\rpa-studio-log\\build\\index.js"]
+    }
+  }
+}
