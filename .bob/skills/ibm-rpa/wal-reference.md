@@ -45,8 +45,8 @@ defDataTable --name myTable
 # Get current date/time
 getCurrentDateAndTime --localorutc "LocalTime"   today=value
 
-# Format a date
-formatDateTime --datetime "${today}" --format "yyyy-MM-dd"   myVar=value
+# Format a date  ← confirmed: dateTimeToText (not formatDateTime)
+dateTimeToText --date "${today}" --usecustomformat --customformat "yyyy-MM-dd"   myVar=value
 ```
 
 ---
@@ -193,24 +193,28 @@ closeBrowser
 ## Excel / Office Automation
 
 ```wal
-# Open workbook
+# Open workbook  ← confirmed: IBM Docs 21.0.x
 excelOpen --path "${inputFile}" --readOnly false   excelApp=value
 
-# Read a single cell
-excelReadCell --application "${excelApp}" --sheet "Sheet1" --row 2 --column 1   cellValue=value
+# Read sheet into DataTable  ← confirmed: IBM Docs 21.0.x "Get Excel Table"
+excelGetTable --application "${excelApp}" --sheet "Sheet1" \
+              --fromRow 1 --fromColumn 1   tableData=value
 
-# Write a single cell
-excelWriteCell --application "${excelApp}" --sheet "Sheet1" --row 2 --column 1 --value "${result}"
-
-# Get the last used row number
+# Get the last used row number  ← confirmed: IBM Docs + community
 excelGetLastRow --application "${excelApp}" --sheet "Sheet1"   lastRow=value
 
-# Read entire sheet into a DataTable
-excelReadRange --application "${excelApp}" --sheet "Sheet1" --startRow 1 --startColumn 1   tableData=value
+# Write entire DataTable back to sheet  ← confirmed: IBM Docs 21.0.x
+excelCreateFromDataTable --application "${excelApp}" --sheet "Sheet1" \
+                         --datatable "${tableData}" --startRow 1 --startColumn 1
 
 # Save and close
 excelSave --application "${excelApp}"
 excelClose --application "${excelApp}"
+
+# ⚠️ UNCONFIRMED (verify in IBM RPA Studio before use):
+# excelReadCell  --application "${excelApp}" --sheet "Sheet1" --row 2 --column 1   cellValue=value
+# excelWriteCell --application "${excelApp}" --sheet "Sheet1" --row 2 --column 1 --value "${result}"
+# excelReadRange --application "${excelApp}" --sheet "Sheet1" --startRow 1 --startColumn 1   tableData=value
 ```
 
 ---
@@ -218,25 +222,22 @@ excelClose --application "${excelApp}"
 ## File & Folder Operations
 
 ```wal
-# Read/write text files
-fileRead --path "${filePath}"   content=value
-fileWrite --path "${outputPath}" --content "${content}" --overwrite true
-
-# Check if file exists
-fileExists --path "${filePath}"   exists=value
-
-# Copy, move, delete
-fileCopy --sourcePath "${src}" --destinationPath "${dest}"
-fileMove --sourcePath "${src}" --destinationPath "${dest}"
-fileDelete --path "${filePath}"
-
-# Folder operations
-folderCreate --path "${folderPath}"
-folderExists --path "${folderPath}"   exists=value
-
-# Special folders
-getSpecialFolder --folder "Desktop"   desktopPath=value
+# Confirmed file/folder commands
+ifFile   --file "${filePath}"     success=value       # ← confirmed: scriptModel.wal
+ifFolder --path "${folderPath}"   success=value       # ← confirmed: scriptModel.wal
+createDir --path "${folderPath}"                      # ← confirmed: scriptModel.wal
+getSpecialFolder --folder "Desktop"   desktopPath=value  # ← confirmed: cp4ba-labs
 # Folders: Desktop | Documents | Downloads | Temp | AppData
+
+# ⚠️ UNCONFIRMED (verify in IBM RPA Studio before use):
+# fileRead --path "${filePath}"   content=value
+# fileWrite --path "${outputPath}" --content "${content}" --overwrite true
+# fileExists --path "${filePath}"   exists=value
+# fileCopy --sourcePath "${src}" --destinationPath "${dest}"
+# fileMove --sourcePath "${src}" --destinationPath "${dest}"
+# fileDelete --path "${filePath}"
+# folderCreate --path "${folderPath}"
+# folderExists --path "${folderPath}"   exists=value
 ```
 
 ---
