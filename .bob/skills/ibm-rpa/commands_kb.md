@@ -744,20 +744,22 @@ findTableCellOccurrence --datatable "${myTable}" --value "${searchVal}" \
 # Find a column index by name
 findColumnByName --datatable "${myTable}" --columnname "Amount"   index=value
 
-# Get value at row/column
-getDataTableValue --datatable "${myTable}" --row 2 --column 1   cellVal=value
+# Get row and column counts  ← verified: IBM Docs 23.0.x "Get Table Information"
+getTableInformation --datatable "${myTable}"   rowCount=value columnCount=value
 
-# Set value at row/column
-setDataTableValue --datatable "${myTable}" --row 2 --column 1 --value "${newVal}"
+# Read specific column values from a row (rownumber is 0-based)  ← verified: IBM Docs 23.0.x "Map Table Row"
+mapTableRow --datatable "${myTable}" --rownumber "${i}" --columns "1,2"   col1=value col2=value
+# --columns = comma-separated 1-based column numbers to extract into output vars
 
-# Row count
-getDataTableRowCount --datatable "${myTable}"   count=value
+# Update a specific row's column value  ← verified: IBM Docs 23.0.x "Update Row"
+updateRow --datatable "${myTable}" --rownumber "${i}" \
+          --valuesmapping "ColumnName=${newVal}"
 
-# Add row
-addDataTableRow --datatable "${myTable}" --values "${v1},${v2},${v3}"
+# Add a row with mapped values  ← verified: IBM Docs 23.0.x "Add Row"
+addRow --datatable "${myTable}" --valuesmapping "Col1=${v1},Col2=${v2},Col3=${v3}"
 
-# Sort
-sortDataTable --datatable "${myTable}" --columnname "Date" --ascending true
+# Sort  ← verified: IBM Docs 23.0.x "Sort Table"
+sortTable --datatable "${myTable}" --columnname "Date" --ascending true
 ```
 
 ---
