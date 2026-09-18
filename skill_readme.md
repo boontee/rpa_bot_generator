@@ -88,6 +88,7 @@ Reference this when customising which sections to include or exclude.
 | [`examples/excel-reader.wal`](.bob/skills/ibm-rpa/examples/excel-reader.wal) | Excel read/loop/write demo slide |
 | [`examples/excel-reconcile.wal`](.bob/skills/ibm-rpa/examples/excel-reconcile.wal) | Data reconciliation demo slide |
 | [`examples/queue-processor.wal`](.bob/skills/ibm-rpa/examples/queue-processor.wal) | Queue performer pattern demo slide |
+| [`examples/python_list_bridge.wal`](.bob/skills/ibm-rpa/examples/python_list_bridge.wal) | Python→WAL List bridge pattern (pipe-delimited string + textSplit) |
 | [`README.md`](README.md) — Java section | Java driver setup, JAB, Java WAL commands, selectors |
 | [`README.md`](README.md) — Vision section | Vision driver, surface automation, OCR, best practices |
 | [`README.md`](README.md) — MAG/RAPID section | Customer use-case slide: RAPID platform, MAG automation opportunity |
