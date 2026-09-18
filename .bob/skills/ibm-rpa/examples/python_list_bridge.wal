@@ -1,0 +1,78 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# python_list_bridge.wal
+#
+# Demonstrates the standard workaround for IBM RPA's runPython limitation:
+#   runPython can only return a single String — never a List, dict, or object.
+#
+# Solution:
+#   1. Python serialises its list as a pipe-delimited string  →  print("|".join(list))
+#   2. WAL receives the String via runPython                  →  rawOutput = "A|B|C"
+#   3. WAL splits it back into a StringList via textSplit     →  itemList = ["A","B","C"]
+#   4. WAL iterates with for + listGetAt
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── VARIABLE DECLARATIONS ────────────────────────────────────────────────────
+defVar --name category    --type String
+defVar --name rawOutput   --type String
+defVar --name delimiter   --type String
+defVar --name itemCount   --type Numeric
+defVar --name currentItem --type String
+defVar --name i           --type Numeric
+
+# ── COLLECTION DECLARATIONS ──────────────────────────────────────────────────
+defList --name itemList --type StringList
+
+# ── MAIN FLOW ────────────────────────────────────────────────────────────────
+goSub --label Init
+goSub --label FetchFromPython
+goSub --label ProcessItems
+goSub --label Cleanup
+
+# ── SUBROUTINES ──────────────────────────────────────────────────────────────
+
+beginSub --name Init
+  logMessage --message "→ Init: start" --type "Info"
+  # Set the category to pass to Python. In a real bot this would come from
+  # bindProcessVariables or a queue message.
+  setVar --name "${category}"  --value "cargo"
+  setVar --name "${delimiter}" --value "|"
+  logMessage --message "← Init: done" --type "Info"
+endSub
+
+beginSub --name FetchFromPython
+  logMessage --message "→ FetchFromPython: start — category=${category}" --type "Info"
+
+  # IBM RPA LIMITATION: runPython returns ONLY a String.
+  # The Python script serialises its list as a pipe-delimited string.
+  # We parse it back into a WAL StringList with textSplit below.
+  runPython --script "python/get_items.py" --parameters "${category}"   rawOutput=value
+
+  logMessage --message "FetchFromPython: rawOutput=${rawOutput}" --type "Info"
+
+  # Reconstruct the WAL List from the delimited string
+  textSplit --text "${rawOutput}" --separator "${delimiter}"   itemList=value
+
+  listCount --list "${itemList}"   itemCount=value
+  logMessage --message "FetchFromPython: parsed ${itemCount} items from Python" --type "Info"
+
+  logMessage --message "← FetchFromPython: done" --type "Info"
+endSub
+
+beginSub --name ProcessItems
+  logMessage --message "→ ProcessItems: start — ${itemCount} items" --type "Info"
+
+  for --variable ${i} --from 0 --to ${itemCount} --step 1
+    listGetAt --list "${itemList}" --index "${i}"   currentItem=value
+    logMessage --message "  [${i}] ${currentItem}" --type "Info"
+    # ── insert your per-item business logic here ──────────────────────────
+  next
+
+  logMessage --message "← ProcessItems: done" --type "Info"
+endSub
+
+beginSub --name Cleanup
+  logMessage --message "→ Cleanup: done" --type "Info"
+  # No open resources in this example. Close browser/files here if needed.
+endSub
+
+* 30.0.2
