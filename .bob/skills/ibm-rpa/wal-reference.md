@@ -8,60 +8,44 @@
 
 ## Data Types
 
-| Type | WAL keyword | Description | Example |
-|---|---|---|---|
-| `String` | `String` | Text | `"hello world"` |
-| `Numeric` | `Numeric` | Integer or decimal | `42`, `3.14` |
-| `Boolean` | `Boolean` | True/False | `True`, `False` |
-| `DateTime` | `DateTime` | Date and time | `2025-01-15 08:00:00` |
-| `List` | (via `defList`) | Ordered string list | `StringList` inner type |
-| `DataTable` | (via `defDataTable`) | Rows + columns tabular data | |
-| `DbConnection` | `DbConnection` | Database connection handle | |
-| `Excel` | `Excel` | Open workbook handle | |
-| `Image` | `Image` | Screenshot / image data | |
-| `QueueConnection` | `QueueConnection` | IBM RPA queue connection | |
-| `MessageQueue` | `MessageQueue` | Queue message reference | |
+| Type | Description | Example value |
+|---|---|---|
+| `String` | Text | `"hello world"` |
+| `Numeric` | Integer or decimal | `42`, `3.14` |
+| `Boolean` | True/False | `True`, `False` |
+| `DateTime` | Date and time | `2025-01-15 08:00:00` |
+| `List` | Ordered list of strings | (declared with `defList`) |
+| `DataTable` | Tabular data (rows + columns) | (declared with `defDataTable`) |
+| `QueueConnection` | IBM RPA queue connection handle | |
+| `MessageQueue` | IBM RPA queue reference | |
 
 ---
 
 ## Variables & Data
 
 ```wal
-# Declare variables (all at top of script)
-defVar --name myVar      --type String
-defVar --name count      --type Numeric
-defVar --name isReady    --type Boolean
-defVar --name today      --type DateTime
-defVar --name excel      --type Excel
-defVar --name screenshot --type Image
+# Declare a variable
+defVar --name myVar --type String
+defVar --name count --type Numeric
+defVar --name isReady --type Boolean
+defVar --name today --type DateTime
 
-# Assign a value — NOTE: --name takes a LITERAL string, not "${varName}"
-setVar --name "myVar" --value "hello"
-setVar --name "count" --value "0"
+# Assign a value
+setVar --name "${myVar}" --value "hello"
 
 # Declare and populate a list
 defList --name myList --type StringList
-listAdd      --list "${myList}" --value "item1"
-listGetAt    --list "${myList}" --index "${i}"   item=value
-listCount    --list "${myList}"                  count=value
-listRemoveAt --list "${myList}" --index "${i}"
-listClear    --list "${myList}"
+listAdd --list "${myList}" --value "item1"
+listAdd --list "${myList}" --value "item2"
+listCount --list "${myList}"   count=value
 
 # Declare a DataTable
 defDataTable --name myTable
 
-# Increment / Decrement (preferred over setVar for counters)
-incrementVar --number ${count}    # count = count + 1
-decrementVar --number ${count}    # count = count - 1
-
-# Arithmetic — use evaluate, not setVar
-evaluate --expression "${a} + ${b}"   result=value
-
 # Get current date/time
 getCurrentDateAndTime --localorutc "LocalTime"   today=value
 
-# Format a date
-formatDateTime --datetime "${today}" --format "yyyy-MM-dd"   str=value
+# Format a date  ← confirmed: dateTimeToText (not formatDateTime)
 dateTimeToText --date "${today}" --usecustomformat --customformat "yyyy-MM-dd"   myVar=value
 ```
 
@@ -73,16 +57,10 @@ dateTimeToText --date "${today}" --usecustomformat --customformat "yyyy-MM-dd"  
 # If / Else
 # Operators: Equal_To  Not_Equal  Greater_Than  Greater_Than_Or_Equal
 #            Less_Than  Less_Than_Or_Equal  Contains  Not_Contains
-#            Is_True  Is_False  Is_Empty  Is_Not_Empty
 if --left "${status}" --operator "Equal_To" --right "Success"
   logMessage --message "succeeded" --type "Info"
 else
   logMessage --message "failed" --type "Error"
-endIf
-
-# Negate a condition
-if --left "${found}" --operator "Is_True" --negate
-  logMessage --message "Not found" --type "Warning"
 endIf
 
 # For loop
@@ -90,15 +68,10 @@ for --variable ${i} --from 1 --to 10 --step 1
   logMessage --message "Row ${i}" --type "Info"
 next
 
-# For-each (iterate a List)
-foreach --collection "${myList}" --variable "${item}"
-  logMessage --message "Item: ${item}" --type "Info"
-endFor
-
 # While loop
 while --left "${count}" --operator "Greater_Than" --right "0"
   # ... work ...
-  decrementVar --number ${count}
+  setVar --name "${count}" --value "${count} - 1"
 endWhile
 
 # Break out of a loop
@@ -107,18 +80,12 @@ break
 # Call a subroutine
 goSub --label MySubroutine
 
-# Conditional call
-gosubIf --label MySubroutine --left "${count}" --operator "Greater_Than" --right "0"
-
 # Subroutine definition
 beginSub --name MySubroutine
   # ... commands ...
 endSub
 
-# Stop cleanly (no error)
-stopExecution
-
-# Throw an error (stops execution with error)
+# Throw an error (stops execution)
 throwError --message "Unexpected state: ${status}"
 ```
 
@@ -127,22 +94,10 @@ throwError --message "Unexpected state: ${status}"
 ## Logging
 
 ```wal
-logMessage --message "→ Login: start"             --type "Info"
-logMessage --message "Processing item ${itemId}"  --type "Info"
-logMessage --message "Retrying after timeout"     --type "Warning"
-logMessage --message "Login failed for user"      --type "Error"
+logMessage --message "Processing item ${itemId}" --type "Info"
+logMessage --message "Retrying after timeout" --type "Warning"
+logMessage --message "Login failed for user" --type "Error"
 # Types: Info | Warning | Error
-
-# Built-in runtime variables for error diagnostics
-# ${rpa:subName}            — currently executing subroutine
-# ${rpa:error.Message}      — last error message
-# ${rpa:error.Routine}      — subroutine where the error occurred
-# ${rpa:error.LineNumber}   — line number of the error
-
-# Capture screenshot for error reports
-printScreen   screenshot=value
-saveImage --image ${screenshot} --directory "${logPath}" \
-          --createrandomfile --format "Png"   savedPath=value
 ```
 
 ---
@@ -150,16 +105,13 @@ saveImage --image ${screenshot} --directory "${logPath}" \
 ## Process Variables (IBM BAW integration)
 
 ```wal
-# Preferred: bind each variable individually (avoids Variable.Parse null crash)
-getProcessVariable --name "username"   username=value
-getProcessVariable --name "orderId"    orderId=value
-
-# Alternative (only if JSON form works in your Studio version)
+# Bind BAW process variables to WAL script variables at startup
+# JSON mapping: {"walVar":"${walVar}"} — escaped quotes required
 bindProcessVariables --mappings "{\"username\":\"${username}\",\"orderId\":\"${orderId}\"}"
 
 # Write a value back to a BAW process variable
 setProcessVariable --name "outputStatus" --value "${status}"
-setProcessVariable --name "rowCount"     --value "${rowCount}"
+setProcessVariable --name "rowCount" --value "${rowCount}"
 ```
 
 ---
@@ -241,33 +193,28 @@ closeBrowser
 ## Excel / Office Automation
 
 ```wal
-# Open / create workbook
+# Open workbook  ← confirmed: IBM Docs 21.0.x
 excelOpen --path "${inputFile}" --readOnly false   excelApp=value
-createOfficeFile --type "Excel" --path "${newPath}"   excelApp=value
 
-# Read
-excelReadCell  --application "${excelApp}" --sheet "Sheet1" --row 2 --column 1   cellValue=value
+# Read sheet into DataTable  ← confirmed: IBM Docs 21.0.x "Get Excel Table"
+excelGetTable --application "${excelApp}" --sheet "Sheet1" \
+              --fromRow 1 --fromColumn 1   tableData=value
+
+# Get the last used row number  ← confirmed: IBM Docs + community
 excelGetLastRow --application "${excelApp}" --sheet "Sheet1"   lastRow=value
-excelGetLastColumn --application "${excelApp}" --sheet "Sheet1"   lastCol=value
-excelReadRange --application "${excelApp}" --sheet "Sheet1" \
-               --startRow 1 --startColumn 1   tableData=value
-excelGetTable  --application "${excelApp}" --sheet "Sheet1" \
-               --fromRow 1 --fromColumn 1   tableData=value
 
-# Write
-excelWriteCell --application "${excelApp}" --sheet "Sheet1" \
-               --row 2 --column 1 --value "${result}"
+# Write entire DataTable back to sheet  ← confirmed: IBM Docs 21.0.x
 excelCreateFromDataTable --application "${excelApp}" --sheet "Sheet1" \
                          --datatable "${tableData}" --startRow 1 --startColumn 1
 
-# Format & macros
-excelMergeCells --application "${excelApp}" --sheet "Sheet1" \
-                --startRow 1 --startColumn 1 --endRow 1 --endColumn 3
-runMacroOffice  --application "${excelApp}" --macro "MacroName"
-
 # Save and close
-excelSave  --application "${excelApp}"
+excelSave --application "${excelApp}"
 excelClose --application "${excelApp}"
+
+# ⚠️ UNCONFIRMED (verify in IBM RPA Studio before use):
+# excelReadCell  --application "${excelApp}" --sheet "Sheet1" --row 2 --column 1   cellValue=value
+# excelWriteCell --application "${excelApp}" --sheet "Sheet1" --row 2 --column 1 --value "${result}"
+# excelReadRange --application "${excelApp}" --sheet "Sheet1" --startRow 1 --startColumn 1   tableData=value
 ```
 
 ---
@@ -275,30 +222,22 @@ excelClose --application "${excelApp}"
 ## File & Folder Operations
 
 ```wal
-# Text file read/write
-fileRead  --path "${filePath}"                              content=value
-fileWrite --path "${outPath}" --content "${text}" --overwrite true
+# Confirmed file/folder commands
+ifFile   --file "${filePath}"     success=value       # ← confirmed: scriptModel.wal
+ifFolder --path "${folderPath}"   success=value       # ← confirmed: scriptModel.wal
+createDir --path "${folderPath}"                      # ← confirmed: scriptModel.wal
+getSpecialFolder --folder "Desktop"   desktopPath=value  # ← confirmed: cp4ba-labs
+# Folders: Desktop | Documents | Downloads | Temp | AppData
 
-# File operations
-fileExists  --path "${filePath}"                            exists=value
-fileCopy    --sourcePath "${src}" --destinationPath "${dest}"
-fileMove    --sourcePath "${src}" --destinationPath "${dest}"
-fileDelete  --path "${filePath}"
-ifFile      --file "${filePath}"                            success=value
-
-# Folder operations
-createDir    --path "${folderPath}"       # alias: folderCreate
-folderExists --path "${folderPath}"       exists=value
-ifFolder     --path "${folderPath}"       success=value
-
-# Special system folders
-getSpecialFolder --folder "Desktop"   path=value
-# Values: Desktop | Documents | Downloads | Temp | AppData
-
-# List files / zip
-getFiles   --path "${folderPath}" --filter "*.xlsx"   fileList=value
-zipFiles   --sourcePath "${folder}"  --destinationPath "${zipFile}"
-unzipFiles --sourcePath "${zipFile}" --destinationPath "${outFolder}"
+# ⚠️ UNCONFIRMED (verify in IBM RPA Studio before use):
+# fileRead --path "${filePath}"   content=value
+# fileWrite --path "${outputPath}" --content "${content}" --overwrite true
+# fileExists --path "${filePath}"   exists=value
+# fileCopy --sourcePath "${src}" --destinationPath "${dest}"
+# fileMove --sourcePath "${src}" --destinationPath "${dest}"
+# fileDelete --path "${filePath}"
+# folderCreate --path "${folderPath}"
+# folderExists --path "${folderPath}"   exists=value
 ```
 
 ---

@@ -1,0 +1,7 @@
+defVar --name x --type String
+
+goSub --label Main
+
+beginSub --name Main
+	logMessage --message "hello" --type "Info"
+endSub

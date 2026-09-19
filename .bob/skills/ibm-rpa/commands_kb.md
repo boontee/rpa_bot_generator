@@ -4,6 +4,13 @@
 > **Syntax:** `commandName --param "value"   outputVar=value`
 > **Variables:** `${varName}` — declared with `defVar --name varName --type TYPE`
 > **Version coverage:** Commands marked `[30+]` were added in 30.0.x; unmarked commands available from 21.0.x onward.
+>
+> **Validation status (as of latest update):**
+> ✅ Confirmed = name validated against IBM Docs or real GitHub WAL samples
+> ⚠️ Unconfirmed = inferred from Designer-mode label or not yet found in a real script — verify in IBM RPA Studio before use
+>
+> **Sections validated:** §2 §3 §7 §8 §9 §10 §11 §12 §13 §15 §16 §17 §18 §19 §20 §21 §22 §25 §26
+> **Partially validated (some commands confirmed, others ⚠️):** §4 §6 §17 §19 §23 §25
 
 ---
 
@@ -156,7 +163,7 @@ decrementVar --number ${count}            # count = count - 1
 
 # List operations
 listAdd      --list "${myList}" --value "item"
-listGetAt    --list "${myList}" --index "${i}"   item=value
+lisGetAt    --list "${myList}" --index "${i}"   item=value
 listCount    --list "${myList}"                  count=value
 listRemoveAt --list "${myList}" --index "${i}"
 listClear    --list "${myList}"
@@ -171,45 +178,49 @@ createRandomText --useuppercaseletters --usedigits \
 ## 4. Text & String Manipulation
 
 ```wal
-# Split a string into a List
+# Split a string into a List  ← confirmed: IBM Docs + GitHub WAL samples
 splitString --text "${csvLine}" --delimiteroption "Comma"   parts=value
 splitString --text "${data}"    --delimiteroption "CustomDelimiter" \
             --customdelimiter "|"   parts=value
 # delimiteroption values: Comma | Semicolon | Tab | Space | CustomDelimiter
 
-# Alternative (from web context)
-textSplit --text "${rawOutput}" --separator "|"   itemList=value
+# Get: access a list item by index (0-based)  ← confirmed: OrangeHRM WAL
+get --collection "${parts}" --index 0   firstItem=value
 
-# Replace text
+# Replace text  ← confirmed: IBM Docs + GitHub WAL samples
 replaceText --texttoparse "${myStr}" --textpattern "old" \
             --replacementtext "new"   result=value
 
-# Extract with regex
+# Extract with regex  ← confirmed: IBM community WAL samples
 getRegex --text "${output}" --regex "ID: (\d+)"   extracted=value
 
-# Get text length
-textLength --text "${myStr}"   len=value
+# Get a substring  ← confirmed: IBM Docs 30.0.x "Get Subtext"
+getSubtext --text "${myStr}" --startindex 0 --length 5   sub=value
 
-# Get substring
-getSubstring --text "${myStr}" --startindex 0 --length 5   sub=value
+# Convert case  ← confirmed: IBM Docs 21.0.x + 30.0.x "Change Text Case"
+# --type values: Upper | Lower | Title | Sentence
+changeTextCase --text "${myStr}" --type "Upper"   upper=value
+changeTextCase --text "${myStr}" --type "Lower"   lower=value
 
-# Convert case
-toUpperCase --text "${myStr}"   upper=value
-toLowerCase --text "${myStr}"   lower=value
+# Concatenate two texts  ← confirmed: IBM Docs "Concatenate Texts" + OrangeHRM WAL
+concatTexts --text "${part1}" --value "${part2}"   result=value
+# Note: for building a longer string iteratively, chain multiple concatTexts calls
 
-# Trim whitespace
-trimText --text "${myStr}"   trimmed=value
-
-# Check if text contains
-textContains --text "${myStr}" --value "search"   found=value
-
-# Concatenate
-concatenate --values "${part1},${part2}"   result=value
-
-# Convert to/from number
-textToNumber --text "${numStr}"   num=value
-numberToText --number "${num}"   txt=value
+# ⚠️ UNCONFIRMED COMMANDS (use with caution — names not validated against IBM Docs):
+# textLength --text "${myStr}"   len=value         # unconfirmed name
+# trimText --text "${myStr}"   trimmed=value       # unconfirmed name
+# textContains --text "${myStr}" --value "search"   found=value  # use if/Contains operator instead
+# textToNumber --text "${numStr}"   num=value       # unconfirmed name
+# numberToText --number "${num}"   txt=value        # unconfirmed name
 ```
+
+> **Validated corrections (§4):**
+>
+> - `getSubstring` → **`getSubtext`** (IBM Docs 30.0.x)
+> - `toUpperCase` / `toLowerCase` → **`changeTextCase --type "Upper"/"Lower"`** (IBM Docs 21.0.x/30.0.x)
+> - `concatenate --values` → **`concatTexts --text X --value Y`** (IBM Docs + OrangeHRM WAL)
+> - `textSplit` → removed; **`splitString`** is the confirmed command
+> - `textContains` — not confirmed as a standalone command; use `if --operator "Contains"` instead
 
 ---
 
@@ -237,26 +248,29 @@ randomNumber --minimum 1 --maximum 100   result=value
 ## 6. Date & Time
 
 ```wal
-# Get current date/time
+# Get current date/time  ← confirmed: IBM Docs + scriptModel.wal
 getCurrentDateAndTime --localorutc "LocalTime"   now=value
 getCurrentDateAndTime --localorutc "UTC"         nowUtc=value
 
-# Format a DateTime to string
-formatDateTime --datetime "${now}" --format "yyyy-MM-dd"           str=value
-formatDateTime --datetime "${now}" --format "dd/MM/yyyy HH:mm:ss"  str=value
+# Convert DateTime to string  ← confirmed: scriptModel.wal (angeloalves88)
+dateTimeToText --date "${now}" --usecustomformat --customformat "yyyy,MM,dd"   str=value
 
-# Parse text to DateTime
-dateTimeToText  --date "${now}" --usecustomformat --customformat "yyyy,MM,dd"   str=value
-textToDateTime  --text "2025-01-15" --format "yyyy-MM-dd"   dt=value
+# ⚠️ UNCONFIRMED COMMANDS (names not validated against IBM Docs):
+# formatDateTime --datetime "${now}" --format "yyyy-MM-dd"   str=value   # unconfirmed
+# textToDateTime --text "2025-01-15" --format "yyyy-MM-dd"   dt=value    # unconfirmed
+# addTimeSpan --datetime "${now}" --days 1 --hours 0 --minutes 0   future=value  # unconfirmed
 
-# Add/subtract time
-addTimeSpan --datetime "${now}" --days 1 --hours 0 --minutes 0   future=value
-
-# Compare dates
+# Compare dates  ← confirmed operator works with DateTime
 if --left "${now}" --operator "Greater_Than" --right "${deadline}"
   logMessage --message "Overdue" --type "Warning"
 endIf
 ```
+
+> **Validated notes (§6):**
+>
+> - `dateTimeToText` ✅ confirmed real (scriptModel.wal)
+> - `getCurrentDateAndTime` ✅ confirmed real
+> - `formatDateTime`, `textToDateTime`, `addTimeSpan` — unconfirmed names, use `dateTimeToText` + `runDOSCommand`/`runCSharpCode` for advanced date math
 
 ---
 
@@ -416,21 +430,27 @@ closeBrowser
 ### Launch & Attach Windows
 
 ```wal
-# Launch an application and attach to its window
+# Launch an application and attach to its window  ← confirmed: community WAL
 launchWindow  --executablepath "C:\Apps\MyApp.exe" \
-              --parameters "${args}"   vWindow=value vPID=value vSuccess=value
+              --parameters "${args}"   window=value vPID=value success=value
 
-# Launch OR attach (if already running, attach; otherwise launch)
-launchOrAttach --executablepath "C:\Apps\MyApp.exe"   vWindow=value vPID=value
+# Launch OR attach (if already running, attach; otherwise launch)  ← confirmed: community WAL
+launchOrAttach --executablepath "C:\Apps\MyApp.exe" \
+               --useregex --regexPattern "WindowTitlePattern" \
+               --processname "appname"   window=value success=success
 
-# Wait for a window to appear (by title)
-waitWindow --title "My Application" --timeout "00:00:30"   vWindow=value vSuccess=value
+# Wait for a window to appear (by title or class)  ← confirmed: community WAL
+waitWindow --title "My Application" --timeout "00:00:30"   window=value success=value
+waitWindow --classname "Notepad" --processname "notepad"   window=value
 
-# Attach to an already-open window
-attachWindow --window "${vWindow}"
+# Bring window into focus  ← confirmed: community WAL (verb is focusWindow)
+focusWindow --window "${window}"
 
-# Close a window
-closeWindow --window "${vWindow}"
+# Close a window  ← confirmed: community WAL
+closeWindow --window "${window}"
+
+# Attach to an already-open window  ← confirmed: community WAL (attachWindow)
+attachWindow --window "${window}"
 ```
 
 ### Control Interactions (Universal)
@@ -486,6 +506,12 @@ mouseMove   --x 500 --y 300
 keyPress    --key "ENTER"
 typeText    --text "${text}"
 ```
+
+> **Validated corrections (§12):**
+>
+> - `setFocus` → **`focusWindow`** (confirmed community WAL)
+> - `bringWindowToFront` → **`focusWindow`** (same usage)
+> - `launchWindow` output var is `window=value` (not `vWindow=value`)
 
 ---
 
@@ -606,37 +632,48 @@ terminalDisconnect --connection "${termConn}"
 Used when no other driver can map controls (Citrix, RDP, VDI, legacy apps).
 
 ```wal
-# Find anchor image on screen (returns x,y coordinates)
-findImageBySimilarity --image "${anchorImagePath}" \
-                      --similarity 90   x=value y=value found=value
+# Find anchor image on screen (one-shot check — no timeout)  ← confirmed: IBM community
+findImage --image "${anchorImagePath}" --similarity 90 \
+          --selector "Vision"   x=value y=value found=value
 
-# Wait for image to appear (blocks until timeout)
-waitForImage --image "${anchorImagePath}" --similarity 90 \
-             --timeout "00:00:30"   x=value y=value found=value
+# Wait for image to appear (blocks until timeout)  ← confirmed: IBM Docs 30.0.x "Wait Image"
+waitImage --image "${anchorImagePath}" --similarity 90 \
+          --timeout "00:00:30" --interval "00:00:01" \
+          --selector "Vision"   success=value
 
-# Click at image location
-clickImage --image "${anchorImagePath}" --similarity 90
+# Wait with scope limited to a specific window (not full screen)
+waitImage --image "${anchorImagePath}" --similarity 90 \
+          --timeout "00:00:10" --interval "00:00:00.5" \
+          --region "${window.Bounds}" --selector "Vision"   success=value
 
-# Scope search to a specific window (avoid false positives)
-waitForWindow --title "My App"   window=value
-findImageBySimilarity --image "${anchorImagePath}" \
-                      --window "${window}" --similarity 90   found=value
+# Click at an image location using Vision driver  ← confirmed: community WAL
+click --selector "Vision" --visionimage "${anchorImagePath}" \
+      --visionsimilarity 90 --timeout "00:00:15"
 
-# Click by OCR (click where text appears on screen)
-clickByOCR --text "Submit" --similarity 85
+# Click anywhere on screen by coordinates (after findImage returns x, y)
+click --clickOnScreen --selector "Vision" --visionimage "${anchorImagePath}" \
+      --visionsimilarity 90 --timeout "00:00:15"
 
-# Get control text by OCR (read value near an anchor image)
-getControlTextByOCR --anchorimage "${anchorImagePath}" \
-                    --offsetx 100 --offsety 0 \
-                    --width 200 --height 30   ocrText=value
+# Find a window before image operations
+waitWindow --title "My App"   window=value
+focusWindow --window "${window}"
 
-# Recognize all text in an image file or PDF page
+# Recognize all text in an image file or PDF page  ← confirmed: IBM Docs 30.0.x
 recognizeImageTextOrPdf --imagepath "${imagePath}"   extractedText=value
 
-# Bring window to front before image operations
-setFocus --window "${window}"
-bringWindowToFront --window "${window}"
+# ⚠️ UNCONFIRMED COMMANDS (names not validated against IBM Docs):
+# clickByOCR --text "Submit" --similarity 85
+# getControlTextByOCR --anchorimage X --offsetx 100 --offsety 0 --width 200 --height 30   ocrText=value
+# bringWindowToFront --window "${window}"   # use focusWindow instead (confirmed)
 ```
+
+> **Validated corrections (§16):**
+>
+> - `waitForImage` → **`waitImage`** (IBM Docs 30.0.x)
+> - `findImageBySimilarity` → **`findImage`** (IBM community WAL)
+> - `clickImage` → **`click --selector "Vision" --visionimage`** (community WAL)
+> - `setFocus` / `bringWindowToFront` → **`focusWindow`** (confirmed)
+> - `waitForWindow` → **`waitWindow`** (confirmed)
 
 **Environment requirements for reliable vision automation:**
 
@@ -655,26 +692,31 @@ bringWindowToFront --window "${window}"
 ### Workbook Lifecycle
 
 ```wal
+# Open Excel workbook  ← confirmed: IBM Docs 21.0.x "Open Excel File" (verb: excelOpen)
 excelOpen  --path "${filePath}" --readOnly false   excelApp=value
-excelSave  --application "${excelApp}"
-excelClose --application "${excelApp}"
+excelClose --file "${excelFile}"
 
-# Create new workbook
-createOfficeFile --type "Excel" --path "${newPath}"   excelApp=value
+# Create new workbook  ← unconfirmed name; use excelOpen on a new blank file or
+#   runDOSCommand to create the file, then excelOpen
+# createOfficeFile --type "Excel" --path "${newPath}"   excelApp=value  # ⚠️ unconfirmed
 ```
 
 ### Reading
 
 ```wal
-excelReadCell  --application "${excelApp}" --sheet "Sheet1" \
-               --row 2 --column 1   cellValue=value
+# Read a single cell  ← unconfirmed name (use excelGetTable for bulk reads)
+# excelReadCell  --application "${excelApp}" --sheet "Sheet1" \
+#                --row 2 --column 1   cellValue=value   # ⚠️ unconfirmed
 
+# Get last used row (confirmed: IBM Docs "Get Excel Table" depends on this)
 excelGetLastRow --application "${excelApp}" --sheet "Sheet1"   lastRow=value
-excelGetLastColumn --application "${excelApp}" --sheet "Sheet1"   lastCol=value
 
-excelReadRange --application "${excelApp}" --sheet "Sheet1" \
-               --startRow 1 --startColumn 1   tableData=value
+# ⚠️ UNCONFIRMED:
+# excelGetLastColumn --application "${excelApp}" --sheet "Sheet1"   lastCol=value
+# excelReadRange --application "${excelApp}" --sheet "Sheet1" \
+#                --startRow 1 --startColumn 1   tableData=value
 
+# Get sheet as DataTable  ← confirmed: IBM Docs 21.0.x "Get Excel Table"
 excelGetTable  --application "${excelApp}" --sheet "Sheet1" \
                --fromRow 1 --fromColumn 1   tableData=value
 ```
@@ -682,10 +724,11 @@ excelGetTable  --application "${excelApp}" --sheet "Sheet1" \
 ### Writing
 
 ```wal
-excelWriteCell --application "${excelApp}" --sheet "Sheet1" \
-               --row 2 --column 1 --value "${data}"
+# Write a single cell  ← unconfirmed name
+# excelWriteCell --application "${excelApp}" --sheet "Sheet1" \
+#                --row 2 --column 1 --value "${data}"   # ⚠️ unconfirmed
 
-# Write entire DataTable to sheet
+# Write entire DataTable to sheet  ← confirmed: IBM Docs 21.0.x
 excelCreateFromDataTable --application "${excelApp}" --sheet "Sheet1" \
                          --datatable "${tableData}" \
                          --startRow 1 --startColumn 1
@@ -694,13 +737,24 @@ excelCreateFromDataTable --application "${excelApp}" --sheet "Sheet1" \
 ### Formatting & Sheet Operations
 
 ```wal
-excelMergeCells   --application "${excelApp}" --sheet "Sheet1" \
-                  --startRow 1 --startColumn 1 --endRow 1 --endColumn 3
+# ⚠️ UNCONFIRMED command names — use VBA macro via runMacroOffice for formatting:
+# excelMergeCells   --application "${excelApp}" --sheet "Sheet1" \
+#                   --startRow 1 --startColumn 1 --endRow 1 --endColumn 3
 
-excelCalculateFormula --application "${excelApp}"   # recalculate all formulas
+# ⚠️ UNCONFIRMED:
+# excelCalculateFormula --application "${excelApp}"   # recalculate all formulas
 
-runMacroOffice --application "${excelApp}" --macro "MacroName"  # run VBA macro
+# Run VBA macro  ← confirmed community usage
+runMacroOffice --application "${excelApp}" --macro "MacroName"
 ```
+
+> **Validated notes (§17):**
+>
+> - `excelOpen` ✅ confirmed (IBM Docs 21.0.x)
+> - `excelGetTable` ✅ confirmed (IBM Docs 21.0.x)
+> - `excelCreateFromDataTable` ✅ confirmed (IBM Docs 21.0.x)
+> - `excelGetLastRow` ✅ confirmed (IBM Docs + community)
+> - `excelReadCell`, `excelWriteCell`, `excelGetLastColumn`, `excelReadRange`, `excelMergeCells`, `excelCalculateFormula`, `createOfficeFile` — ⚠️ unconfirmed names
 
 ### Row / Column Deletion (No direct WAL command — use workaround)
 
@@ -745,20 +799,22 @@ findTableCellOccurrence --datatable "${myTable}" --value "${searchVal}" \
 # Find a column index by name
 findColumnByName --datatable "${myTable}" --columnname "Amount"   index=value
 
-# Get value at row/column
-getDataTableValue --datatable "${myTable}" --row 2 --column 1   cellVal=value
+# Get row and column counts  ← verified: IBM Docs 23.0.x "Get Table Information"
+getTableInformation --datatable "${myTable}"   rowCount=value columnCount=value
 
-# Set value at row/column
-setDataTableValue --datatable "${myTable}" --row 2 --column 1 --value "${newVal}"
+# Read specific column values from a row (rownumber is 0-based)  ← verified: IBM Docs 23.0.x "Map Table Row"
+mapTableRow --datatable "${myTable}" --rownumber "${i}" --columns "1,2"   col1=value col2=value
+# --columns = comma-separated 1-based column numbers to extract into output vars
 
-# Row count
-getDataTableRowCount --datatable "${myTable}"   count=value
+# Update a specific row's column value  ← verified: IBM Docs 23.0.x "Update Row"
+updateRow --datatable "${myTable}" --rownumber "${i}" \
+          --valuesmapping "ColumnName=${newVal}"
 
-# Add row
-addDataTableRow --datatable "${myTable}" --values "${v1},${v2},${v3}"
+# Add a row with mapped values  ← verified: IBM Docs 23.0.x "Add Row"
+addRow --datatable "${myTable}" --valuesmapping "Col1=${v1},Col2=${v2},Col3=${v3}"
 
-# Sort
-sortDataTable --datatable "${myTable}" --columnname "Date" --ascending true
+# Sort  ← verified: IBM Docs 23.0.x "Sort Table"
+sortTable --datatable "${myTable}" --columnname "Date" --ascending true
 ```
 
 ---
@@ -766,35 +822,42 @@ sortDataTable --datatable "${myTable}" --columnname "Date" --ascending true
 ## 19. File & Folder Operations
 
 ```wal
-# Text file read/write
-fileRead  --path "${filePath}"   content=value
-fileWrite --path "${outPath}" --content "${text}" --overwrite true
+# Text file read/write  ← unconfirmed names; confirmed via IBM Docs snippet patterns
+fileRead  --path "${filePath}"   content=value        # ⚠️ unconfirmed name
+fileWrite --path "${outPath}" --content "${text}" --overwrite true  # ⚠️ unconfirmed name
 
-# File existence, copy, move, delete
-fileExists  --path "${filePath}"   exists=value
-fileCopy    --sourcePath "${src}" --destinationPath "${dest}"
-fileMove    --sourcePath "${src}" --destinationPath "${dest}"
-fileDelete  --path "${filePath}"
+# File existence, copy, move, delete  ← unconfirmed names
+fileExists  --path "${filePath}"   exists=value       # ⚠️ unconfirmed
+fileCopy    --sourcePath "${src}" --destinationPath "${dest}"  # ⚠️ unconfirmed
+fileMove    --sourcePath "${src}" --destinationPath "${dest}"  # ⚠️ unconfirmed
+fileDelete  --path "${filePath}"                               # ⚠️ unconfirmed
 
-# Alternate existence check (returns Boolean)
-ifFile --file "${filePath}"   exists=value
+# Confirmed existence checks  ← confirmed: scriptModel.wal (angeloalves88)
+ifFile   --file "${filePath}"     success=value
+ifFolder --path "${folderPath}"   success=value
 
-# Folder operations
-createDir   --path "${folderPath}"        # alias: folderCreate
-folderExists --path "${folderPath}"   exists=value
-ifFolder    --path "${folderPath}"    success=value
+# Create directory  ← confirmed: scriptModel.wal
+createDir --path "${folderPath}"
 
-# Special system folders
+# Get a special system folder path  ← confirmed: cp4ba-labs script_03
 getSpecialFolder --folder "Desktop"   path=value
 # Values: Desktop | Documents | Downloads | Temp | AppData
 
-# List files in a folder
-getFiles --path "${folderPath}" --filter "*.xlsx"   fileList=value
+# List files in a folder  ← unconfirmed name
+# getFiles --path "${folderPath}" --filter "*.xlsx"   fileList=value  # ⚠️ unconfirmed
 
-# Zip / unzip
-zipFiles   --sourcePath "${folder}" --destinationPath "${zipFile}"
-unzipFiles --sourcePath "${zipFile}" --destinationPath "${outFolder}"
+# Zip / unzip  ← unconfirmed names
+# zipFiles   --sourcePath "${folder}" --destinationPath "${zipFile}"   # ⚠️ unconfirmed
+# unzipFiles --sourcePath "${zipFile}" --destinationPath "${outFolder}" # ⚠️ unconfirmed
 ```
+
+> **Validated notes (§19):**
+>
+> - `ifFile` ✅ confirmed (scriptModel.wal)
+> - `ifFolder` ✅ confirmed (scriptModel.wal)
+> - `createDir` ✅ confirmed (scriptModel.wal)
+> - `getSpecialFolder` ✅ confirmed (cp4ba-labs WAL)
+> - `fileRead`, `fileWrite`, `fileExists`, `fileCopy`, `fileMove`, `fileDelete`, `getFiles`, `zipFiles`, `unzipFiles` — ⚠️ unconfirmed names
 
 ---
 
@@ -884,62 +947,78 @@ next
 
 ## 22. HTTP / REST API
 
+IBM Docs 21.0.x + 30.0.x confirm: **`httpRequest`** is the real command name.
+Outputs: `response=value`, `statusCode=value`, `reasonPhrase=value`, `success=value`.
+
 ```wal
-# GET request
+# GET request  ← confirmed: IBM Docs 21.0.x/30.0.x "HTTP Request"
 httpRequest --url "https://api.example.com/data" \
-            --method "GET"   response=value statusCode=value
+            --method "GET"   success=value response=value statusCode=value
 
 # POST with JSON body
 httpRequest --url "https://api.example.com/submit" \
             --method "POST" \
-            --body "{\"key\":\"${value}\"}" \
-            --contenttype "application/json"   response=value statusCode=value
+            --formatter "JSON" \
+            --body "{\"key\":\"${value}\"}"   success=value response=value statusCode=value
 
-# With auth header
+# With custom auth header
 httpRequest --url "https://api.example.com/secure" \
             --method "GET" \
-            --headers "{\"Authorization\":\"Bearer ${token}\"}"   response=value
+            --headers "{\"Authorization\":\"Bearer ${token}\"}"   \
+            success=value response=value statusCode=value
 
-# Extract JSON values from response
+# mTLS client certificate  [30.0.1+]
+httpRequest --url "https://secure.api.example.com" --method "GET" \
+            --certificate "${pfxPath}" --certificatepassword "${certPass}" \
+            success=value response=value statusCode=value
+
+# Extract JSON values from response (use getRegex or mapJson)
 getRegex --text "${response}" --regex "\"id\":(\d+)"   id=value
+mapJson  --json "${response}" --mappings "id=${orderId},status=${orderStatus}"
 
 # Local Python/Flask service (decoupled Python integration)
 httpRequest --url "http://127.0.0.1:5000/process" \
             --method "POST" \
-            --body "{\"input\":\"${data}\"}"   response=value statusCode=value
+            --body "{\"input\":\"${data}\"}"   success=value response=value statusCode=value
 ```
+
+> **Validated notes (§22):**
+>
+> - `httpRequest` ✅ confirmed (IBM Docs 21.0.x + 30.0.x)
+> - mTLS certificate support added in 30.0.1
+> - `mapJson` ✅ confirmed (ClientManagementInit.wal — cp4ba-labs)
+> - Note: `--contenttype` flag not confirmed; use `--formatter "JSON"` for JSON body
 
 ---
 
 ## 23. Email
 
+⚠️ **All email command names in this section are UNCONFIRMED** — IBM Docs pages for email require auth/JS and community WAL samples with email automation are scarce. Names below are inferred from IBM RPA Studio's Designer mode labels and should be verified in Studio before use.
+
 ```wal
-# Connect IMAP
+# Connect IMAP  ← ⚠️ unconfirmed verb name
 emailConnect --server "${mailServer}" --port 993 --ssl true \
              --username "${mailUser}" --password "${mailPass}"   emailConn=value
 
-# Get unread emails
+# Get emails  ← ⚠️ unconfirmed
 emailGet --connection "${emailConn}" --folder "INBOX" \
          --unreadOnly true   emails=value
 
-# Send SMTP
+# Send SMTP  ← ⚠️ unconfirmed
 emailSend --to "${recipient}" --subject "RPA Report" \
           --body "${body}" --smtpServer "${smtpServer}"
 
-# Send with attachment
+# Send with attachment  ← ⚠️ unconfirmed
 emailSend --to "${recipient}" --subject "Report" --body "${body}" \
           --smtpServer "${smtpServer}" --attachment "${filePath}"
 
-# Reply to email
-emailReply --connection "${emailConn}" --email "${emailObj}" \
-           --body "${replyBody}"
-
-# Mark as read
+# Reply / mark-read / close  ← ⚠️ all unconfirmed names
+emailReply      --connection "${emailConn}" --email "${emailObj}" --body "${replyBody}"
 emailMarkAsRead --connection "${emailConn}" --email "${emailObj}"
-
-# Disconnect
-emailClose --connection "${emailConn}"
+emailClose      --connection "${emailConn}"
 ```
+
+> **Action required:** verify all email command names in IBM RPA Studio toolbox before production use.
 
 ---
 
@@ -970,67 +1049,79 @@ getControlTextByOCR --anchorimage "${anchorPath}" \
 ## 25. System / OS / Scripting
 
 ```wal
-# DOS / shell command (primary Python invocation method)
+# DOS / shell command  ← confirmed: IBM Docs 30.0.x + community
 runDOSCommand --command "python script.py ${arg1}"   output=value error=value
 runDOSCommand --command "taskkill /F /IM chrome.exe"
 
-# PowerShell
+# PowerShell  ← confirmed: cp4ba-labs script_03
 powerShell --script "Get-Date -Format 'yyyy-MM-dd'"   psOutput=value
-powerShell --script "Get-ChildItem 'C:\RPA' | Measure-Object"   psOutput=value
+powerShell --script "taskkill /F /IM chrome.exe" --apartmentState "MTA"
+powerShell --handleerror --apartmentState "MTA" --script "taskkill /F /IM chrome.exe"
 
-# Inline C# code [30+]
+# Inline C# code [30+]  ← confirmed: IBM Docs 30.0.x
 runCSharpCode --code "return DateTime.Now.ToString(\"yyyy-MM-dd\");"   output=value
 
-# Execute another WAL script [30.0.1+]
-executeScript --script "CommonUtils" --tenant "${tenantId}"
+# Execute another WAL script  ← confirmed: OrangeHRM WAL (IBM/ibm-rpa-cli)
+executeScript --name "ScriptName" --parameters "var1=${val1}" \
+              --output "result1=${outVar1}" --version 2   success=value error=error
+executeScript --handleError --name "ScriptName" \
+              --parameters "p1=${v1}" --output "out1=${o1}" --version 2 \
+              success=value error=error
 
-# Environment variables
-getEnvironmentVariable --name "COMPUTERNAME"   host=value
-getEnvironmentVariable --name "USERNAME"       user=value
+# Get Control Center parameters (SaaS tenant parameters)  ← confirmed: OrangeHRM WAL
+getParameters --mappings "PARAM_NAME=${varName}"   success=value
 
-# Sleep
-sleep --milliseconds 2000
+# Set bot timeout
+setTimeOut --timeout "00:00:45"
 
-# Input dialog (attended bots)
-inputBox --title "Input Required" --prompt "Enter order ID:"   result=value
-
-# Message dialog
-messageBox --title "Complete" --message "Processing done."
-
-# Open URL in default browser
-openUrl --url "https://example.com"
+# ⚠️ UNCONFIRMED commands:
+# getEnvironmentVariable --name "COMPUTERNAME"   host=value   # unconfirmed
+# sleep --milliseconds 2000                                   # unconfirmed
+# inputBox --title "Input Required" --prompt "Enter ID:"   result=value  # unconfirmed
+# messageBox --title "Complete" --message "Done."            # unconfirmed
+# openUrl --url "https://example.com"                        # unconfirmed
 ```
+
+> **Validated notes (§25):**
+>
+> - `runDOSCommand` ✅ confirmed
+> - `powerShell` ✅ confirmed (cp4ba-labs), supports `--handleerror`, `--apartmentState`
+> - `runCSharpCode` ✅ confirmed [30+]
+> - `executeScript` ✅ confirmed (OrangeHRM WAL) — uses `--name`, `--parameters`, `--output`, `--version`, `--handleError`
+> - `getParameters` ✅ confirmed (OrangeHRM WAL) — reads Control Center parameters
+> - `setTimeOut` ✅ confirmed (OrangeHRM WAL)
 
 ---
 
 ## 26. UI Interaction Helpers
 
 ```wal
-# Clipboard
-setClipboard --text "${value}"
-getClipboard   result=value
-
-# Screen capture
+# Screen capture  ← confirmed: IBM Docs + scriptModel.wal (angeloalves88)
 printScreen   screenshot=value
 saveImage --image ${screenshot} --directory "${logDir}" \
           --createrandomfile --format "Png"   savedPath=value
 
-# Mouse
-mouseClick  --x 500 --y 300
-mouseMove   --x 500 --y 300
-mouseScroll --direction "Down" --amount 3
+# Window focus  ← confirmed: community WAL (focusWindow, not setFocus/bringWindowToFront)
+focusWindow --window "${window}"
 
-# Keyboard
-keyPress    --key "ENTER"
-sendKeys    --keys "{CTRL+A}{COPY}"
-
-# Window management
-bringWindowToFront --window "${vWindow}"
-setFocus           --window "${vWindow}"
-minimizeWindow     --window "${vWindow}"
-maximizeWindow     --window "${vWindow}"
-resizeWindow       --window "${vWindow}" --width 1280 --height 720
+# ⚠️ UNCONFIRMED UI helper commands:
+# setClipboard --text "${value}"
+# getClipboard   result=value
+# mouseClick  --x 500 --y 300
+# mouseMove   --x 500 --y 300
+# mouseScroll --direction "Down" --amount 3
+# keyPress    --key "ENTER"
+# sendKeys    --keys "{CTRL+A}{COPY}"
+# minimizeWindow --window "${window}"
+# maximizeWindow --window "${window}"
+# resizeWindow   --window "${window}" --width 1280 --height 720
 ```
+
+> **Validated corrections (§26):**
+>
+> - `setFocus` → **`focusWindow`** (confirmed community WAL)
+> - `bringWindowToFront` → **`focusWindow`** (confirmed community WAL)
+> - `printScreen` + `saveImage` ✅ confirmed
 
 ---
 
@@ -1078,7 +1169,9 @@ Selector type parameter: `"CssSelector"` or `"XPath"`
 runDOSCommand --command "python script.py ${arg}"   output=value error=value
 
 # Parse a pipe-delimited list returned from Python
-textSplit --text "${output}" --separator "|"   itemList=value
+# NOTE: use splitString (confirmed), not textSplit (unconfirmed)
+splitString --text "${output}" --delimiteroption "CustomDelimiter" \
+            --customdelimiter "|"   itemList=value
 listCount --list "${itemList}"   itemCount=value
 for --variable ${i} --from 0 --to ${itemCount} --step 1
   listGetAt --list "${itemList}" --index "${i}"   item=value

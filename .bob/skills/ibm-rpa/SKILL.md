@@ -25,8 +25,13 @@ See `commands_kb.md` for the **full command reference** — all 27 categories
 (data types, flow control, web/desktop/Java/SAP/terminal automation, Excel,
 DataTable, file, DB, queue, HTTP, email, PDF, OCR, scripting) with exact
 parameter names, output variable names, and working code snippets. This is
-the **primary command lookup** to use when writing or reviewing any WAL script.
+the **authoritative and primary command lookup** to use when writing, reviewing, or fixing any WAL script.
 Commands marked `[30+]` in the KB were added in Studio 30.0.x; all others are available from 21.0.x.
+
+**CRITICAL COMMAND VALIDATION RULE:**
+- **Every command action used in a WAL script MUST exist in `commands_kb.md`.**
+- If a command action is NOT present in `commands_kb.md`, it is considered **INVALID / NON-EXISTENT** and will cause Studio syntax errors (e.g., `Command 'xyz' not found`).
+- Whenever an invalid, unlisted, or hallucinated command action is encountered or used, it **MUST be replaced immediately** with the valid equivalent command and parameter syntax documented in `commands_kb.md`.
 
 See `wal-reference.md` for a condensed quick-reference summary.
 See `examples/` for complete, working script patterns.
@@ -69,27 +74,38 @@ with `ProtoBuf.ProtoException: Invalid wire-type`.
 - NEVER use `write_file` on a `.wal` — it overwrites the binary framing with plain text and Studio cannot open the file.
 - To regenerate from scratch, use `wal_generator.py --template <existing.wal>` so the varint length is recalculated correctly.
 
-## Confirmed Invalid Commands (Studio 30.x)
+## Confirmed Invalid Commands & Common Syntax Traps (Studio 30.x)
 
-These commands were verified as non-existent or broken in Studio 30.0.3.0 — do not use them:
+These commands and patterns were verified as non-existent, invalid, or broken in Studio 30.0.3.0 — do not use them:
 
-| Invalid command / type | Correct replacement |
+| Invalid command / pattern | Correct replacement & rule |
 |---|---|
-| `throwException` | `failTest --message "..."` |
-| `getRegex --regex "..."` | `getRegex --regexPattern "..."` (correct param name) |
-| `setVar --value "${x} + 1"` for arithmetic | `evaluate --expression "${x} + 1"   x=value` — `setVar` does not evaluate expressions |
-| `bindProcessVariables --mappings "{\"k\":\"${v}\"}"` | `getProcessVariable --name "k"   v=value` per variable — the escaped-JSON form causes `Variable.Parse(null)` in Studio 30.x |
+| `throwException` | `throwError --message "..."` (general errors) or `failTest --message "..."` (test failures) |
+| `getRegex --regex "..."` | `getRegex --text "${source}" --regexPattern "..." extracted=value` (flag name is `--regexPattern`) |
+| `setVar --name "${x}" --value "${x} + 1"` | `evaluate --expression "${x} + 1" x=value` — `setVar` does NOT evaluate arithmetic expressions |
+| `setVar --name "${varName}"` | `setVar --name "varName"` — `--name` MUST be a literal string without `${}` |
+| `incrementVar --number "${n}"` | `incrementVar --number ${n}` (and `decrementVar`) — use `${n}` without surrounding quotes |
+| `bindProcessVariables --mappings "{\"k\":\"${v}\"}"` | Causes `Variable.Parse(null)` crash in Studio 30.x — remove entirely; pass file paths via a parent script or `setVar` defaults instead |
+| `getProcessVariable --name "k" v=value` | Not a recognised command in Studio 30.x — do not use |
+| `${rpa:error.Message}` / `${rpa:error.Routine}` / `${rpa:error.LineNumber}` in `logMessage` | Causes `Variable.Parse(null)` WARN in Studio 30.x — use a plain string message in `ErrorHandler` instead |
+| Quoted booleans e.g. `--readOnly "true"` | Unquoted boolean literals: `--readOnly true` or `--readOnly false` |
+| Direct Excel row deletion commands | In-memory DataTable filtering workaround: `excelGetTable` → `deleteRows` → `excelCreateFromDataTable` → `excelSave` |
 
-**Commands previously listed as invalid that `commands_kb.md` now confirms DO exist:**
+> **Background noise — Studio 30.x known bug:** A `WARNParserServiceStudio Value cannot be null. Parameter name: source` entry in `Studio.log` appears on **every** script parse regardless of script content. It is a Studio 30.x internal parser defect in `Variable.Parse(String source)` and does **not** indicate a problem with the WAL script. Ignore this WARN when no `ERROR` lines are present.
 
-| Command | Notes |
+**Commands confirmed VALID in Studio 30.x:**
+
+| Command / Pattern | Notes & Usage |
 |---|---|
 | `defList --name x --type StringList` | Valid; use `listAdd`, `listGetAt`, `listCount`, `listRemoveAt`, `listClear` |
 | `defDataTable --name x` | Valid shorthand; `defVar --name x --type DataTable` is equivalent |
-| `fileExists --path "${p}"   exists=value` | Valid in Studio 30.x |
-| `throwError --message "..."` | Valid; `failTest` is for test-context failures only |
-| `excelGetLastRow --application "${app}" --sheet "Sheet1"   lastRow=value` | Valid; `getDataTableRowCount` after `excelGetTable` is an alternative |
-| `→` `←` arrow chars in `logMessage` strings | Valid in Studio 30.x; `commands_kb.md` section 7 uses them directly |
+| `fileExists --path "${p}" exists=value` | Valid in Studio 30.x; alternative `ifFile --file "${p}" exists=value` |
+| `throwError --message "..."` | Valid for raising runtime errors; `failTest` is reserved for test-context failures |
+| `excelGetLastRow --application "${app}" --sheet "Sheet1" lastRow=value` | Valid; `getDataTableRowCount` after `excelGetTable` is also an alternative |
+| `→` `←` arrow chars in `logMessage` strings | Valid in Studio 30.x log messages |
+| `dbQuery --parameters "{\"id\":\"${val}\"}"` | Valid for parameterized SQL queries preventing SQL injection |
+| `runCSharpCode --code "..."` | Valid [30+] for inline C# execution |
+| `executeScript --script "Name" --tenant "${id}"` | Valid [30.0.1+] for invoking modular WAL scripts |
 
 ## Mandatory Script Structure
 
@@ -120,8 +136,9 @@ endSub
 beginSub --name Cleanup
   ...
 endSub
-*30.0.3.0
 ```
+
+> **Note:** Do NOT include `*30.0.3.0` in `.wal.txt` source files. The version marker is part of the protobuf binary suffix appended automatically by `wal_generator.py` from the template. Including it as text causes Studio to report `Command '*30.0.3.0' not found`.
 
 - The **main flow section** contains ONLY `goSub` calls — no logic, no web commands.
 - Every subroutine name uses PascalCase: `Login`, `ProcessInvoice`, `Cleanup`.
@@ -167,8 +184,7 @@ endSub
    expected errors, browser/app/file targets.
 2. **Draft the variable list** — every value used anywhere needs a `defVar`.
 3. **Map subroutines** — one subroutine per logical phase. Always include `Cleanup`.
-4. **Look up every command** you intend to use in `commands_kb.md` — verify the exact parameter
-   names, output variable names, and any required flags before writing.
+4. **Validate every command against `commands_kb.md`** — look up every intended command action in `commands_kb.md` first. If a command action is not in `commands_kb.md`, do not use it; find the valid supported alternative. Verify exact parameter names, output variable names (`var=value`), and required flags.
 5. **Write the script top-down** in the structure order above.
 6. **Review against the checklist** before presenting the output.
 
@@ -201,22 +217,46 @@ print("RESULT:" + ",".join(results))
 - Use `getRegex` to parse the JSON response fields
 - See `commands_kb.md` section 22 for the full pattern
 
+## Domain-Specific Quick Rules
+
+### Desktop / Java / SAP Automation
+- **Windows Desktop:** Use `launchWindow` or `launchOrAttach` followed by `attachWindow`. Always use `waitWindow --title "..." --timeout "..."` for stabilization.
+- **Java Swing:** Requires JAB enabled (`jabswitch -enable`). Selectors use Accessibility role XPath names (`push_button`, `text`, `check_box`, `combo_box`, `table`, `tree`, `panel`). Always capture Java XPaths using IBM RPA Studio Recorder with the Java driver rather than guessing.
+- **SAP GUI:** Requires Vision driver in Recorder or SAP GUI Scripting enabled. Use `sapOpen`, `sapSet --field "..." --value "..."`, `sapClick --button "..."`, `sapClose`.
+- **Terminal (Mainframe/3270/5250):** Use `terminalConnect --emulationtype "IBM3270"`, wait for screen with `terminalWait`, read with `terminalGetText`, write with `terminalSetText`, and send keys with `terminalSendKey`.
+
+### Excel & DataTable Automation
+- Open workbooks with `excelOpen --readOnly false   excelApp=value` (unquoted boolean).
+- Read ranges into DataTable with `excelGetTable` or `excelReadRange`.
+- Obtain row count using `getDataTableRowCount --datatable "${table}" count=value`.
+- To delete rows from Excel, use the in-memory pattern (`excelGetTable` → `deleteRows` → `excelCreateFromDataTable` → `excelSave`).
+- Always close Excel handles in `Cleanup` using `excelClose --application "${excelApp}"` (guarded with `Is_Not_Empty`).
+
+### Databases & Queues
+- **Databases:** Use `dbConnect` with provider (`SqlServer`, `Oracle`, `PostgreSQL`, `MySQL`, `DB2`, `ODBC`) or embedded `sqliteConnect`. Always use parameterized queries via `--parameters "{\"key\":\"${val}\"}"` in `dbQuery` to prevent SQL injection.
+- **Queues:** Use `mqConnect`, non-blocking fetch with `mqGet --timeout "00:00:05" message=value success=value`. Acknowledge with `mqComplete` or fail with `mqFail`.
+
 ## Pre-Output Checklist
 
 Before writing the final WAL text source, verify:
 - [ ] Output file has `.wal.txt` extension — NEVER `.wal`
-- [ ] All variables declared at the top with correct types
-- [ ] `bindProcessVariables` present if any variables come from BAW (or `getProcessVariable` per-variable)
-- [ ] Main flow contains only `goSub` calls
-- [ ] Every web interaction is preceded by `webWaitElement`
-- [ ] No hardcoded credentials anywhere
-- [ ] `Cleanup` subroutine closes browser and all open files/connections
+- [ ] All command actions used exist in `commands_kb.md` (no hallucinated or unlisted command actions)
+- [ ] All variables declared at the top with correct types (`defVar`, `defList`, `defDataTable`)
+- [ ] Process variable integration uses valid syntax supported by the target Studio version
+- [ ] Main flow contains only `goSub` calls — no logic or direct actions
+- [ ] Every web interaction is preceded by `webWaitElement` with timeout
+- [ ] Web elements use highest available selector priority (`#id` → `[data-testid]` → `[aria-label]` → `.class`) — avoid `nth-child`
+- [ ] Web input/click commands include `--simulatehuman` for stability
+- [ ] No hardcoded credentials anywhere — loaded via `getAsset` or process variables
+- [ ] `Cleanup` subroutine closes browser, Excel, DB, queues, and all open connections
 - [ ] `Cleanup` is called on both success and error paths
 - [ ] `onError --label ErrorHandler` at the top of every subroutine (except `ErrorHandler` and `Cleanup`)
-- [ ] `logMessage` at the start and end of each subroutine
-- [ ] Arithmetic uses `evaluate --expression "..."   var=value` (not `setVar` with an expression)
+- [ ] `logMessage` at the start (`→ SubName: start`) and end (`← SubName: done`) of each subroutine
+- [ ] Arithmetic uses `evaluate --expression "..." var=value` (not `setVar` with an expression)
+- [ ] `incrementVar` / `decrementVar` uses `--number ${n}` without quotes
 - [ ] `setVar --name "varName"` uses a **literal name string**, never `"${varName}"`
-- [ ] Last line is `*30.0.3.0` (no space, no trailing newline)
+- [ ] Booleans in parameters are unquoted literals (`--readOnly false`, `--ssl true`, `--ascending true`)
+- [ ] Do NOT include `*30.0.3.0` in the `.wal.txt` — the version suffix is appended by `wal_generator.py` from the template binary
 
 ## Fixing Script Errors
 
