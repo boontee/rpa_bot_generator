@@ -14,7 +14,7 @@ rule in this guide exactly.
 ## WAL Language Essentials
 
 WAL is a command-based procedural language. Every line is a command with
-`--flag value` named parameters. Variables are referenced as `${varName}`.
+`--flag value` named parameters. Variables are referenced as `${varName}` (without surrounding quotes when passed as a command parameter handle/reference, e.g. `--file ${excelApp}`). Use `"${varName}"` only inside string values, e.g. `--message "Processing ${itemId}"`.
 Command output is captured with the `variableName=value` suffix.
 
 ```
@@ -83,11 +83,12 @@ These commands and patterns were verified as non-existent, invalid, or broken in
 | `throwException` | `throwError --message "..."` (general errors) or `failTest --message "..."` (test failures) |
 | `getRegex --regex "..."` | `getRegex --text "${source}" --regexPattern "..." extracted=value` (flag name is `--regexPattern`) |
 | `setVar --name "${x}" --value "${x} + 1"` | `evaluate --expression "${x} + 1" x=value` — `setVar` does NOT evaluate arithmetic expressions |
-| `setVar --name "${varName}"` | `setVar --name "varName"` — `--name` MUST be a literal string without `${}` |
+| `setVar --name "varName"` (quoted literal) | ❌ Wrong form — assigns to a variable literally named `varName` (the string), not the declared WAL variable. Use `setVar --name ${varName}` instead. |
 | `incrementVar --number "${n}"` | `incrementVar --number ${n}` (and `decrementVar`) — use `${n}` without surrounding quotes |
 | `bindProcessVariables --mappings "{\"k\":\"${v}\"}"` | Causes `Variable.Parse(null)` crash in Studio 30.x — remove entirely; pass file paths via a parent script or `setVar` defaults instead |
 | `getProcessVariable --name "k" v=value` | Not a recognised command in Studio 30.x — do not use |
 | `${rpa:error.Message}` / `${rpa:error.Routine}` / `${rpa:error.LineNumber}` in `logMessage` | Causes `Variable.Parse(null)` WARN in Studio 30.x — use a plain string message in `ErrorHandler` instead |
+| `if --left ${var} --operator "Equal_To" --right ""` | ❌ Not valid — `Equal_To ""` is not a supported null/empty check. Use `if --left ${var} --operator "Is_Null"` to check for null/uninitialised handles |
 | Quoted booleans e.g. `--readOnly "true"` | Unquoted boolean literals: `--readOnly true` or `--readOnly false` |
 | Direct Excel row deletion commands | In-memory DataTable filtering workaround: `excelGetTable` → `deleteRows` → `excelCreateFromDataTable` → `excelSave` |
 
@@ -100,8 +101,9 @@ These commands and patterns were verified as non-existent, invalid, or broken in
 | `defList --name x --type StringList` | Valid; use `listAdd`, `listGetAt`, `listCount`, `listRemoveAt`, `listClear` |
 | `defDataTable --name x` | Valid shorthand; `defVar --name x --type DataTable` is equivalent |
 | `fileExists --path "${p}" exists=value` | Valid in Studio 30.x; alternative `ifFile --file "${p}" exists=value` |
-| `throwError --message "..."` | Valid for raising runtime errors; `failTest` is reserved for test-context failures |
-| `excelGetLastRow --application "${app}" --sheet "Sheet1" lastRow=value` | Valid; `getDataTableRowCount` after `excelGetTable` is also an alternative |
+| `throwError --message "..."` | ❌ NOT valid in Studio 30.0.3 — `Command 'throwError' not found`; use `stopExecution` instead |
+| `excelGetLastRow` | ❌ NOT valid in Studio 30.0.3 — `Command 'excelGetLastRow' not found`; row count is returned directly by `excelGetTable ... rows=value` |
+| `setVar --name ${varName} --value "..."` | ✅ Confirmed correct — `--name` takes the variable reference `${varName}` (no surrounding quotes), e.g. `setVar --name ${sourceFile} --value "path"` |
 | `→` `←` arrow chars in `logMessage` strings | Valid in Studio 30.x log messages |
 | `dbQuery --parameters "{\"id\":\"${val}\"}"` | Valid for parameterized SQL queries preventing SQL injection |
 | `runCSharpCode --code "..."` | Valid [30+] for inline C# execution |
@@ -200,10 +202,10 @@ IBM RPA has no native Python runner. Two supported patterns:
 ```wal
 runDOSCommand --command "python C:\\scripts\\myscript.py ${inputParam}"   dosOutput=value error=value
 // Extract individual values with regex
-getRegex --text "${dosOutput}" --regex "RESULT:([^,\r\n]+)"            result1=value
-getRegex --text "${dosOutput}" --regex "RESULT:[^,\r\n]+,([^,\r\n]+)" result2=value
+getRegex --text ${dosOutput} --regex "RESULT:([^,\r\n]+)"            result1=value
+getRegex --text ${dosOutput} --regex "RESULT:[^,\r\n]+,([^,\r\n]+)" result2=value
 // Or split a pipe-delimited list into a List variable
-textSplit --text "${dosOutput}" --separator "|"   itemList=value
+textSplit --text ${dosOutput} --separator "|"   itemList=value
 ```
 
 ```python
@@ -226,11 +228,11 @@ print("RESULT:" + ",".join(results))
 - **Terminal (Mainframe/3270/5250):** Use `terminalConnect --emulationtype "IBM3270"`, wait for screen with `terminalWait`, read with `terminalGetText`, write with `terminalSetText`, and send keys with `terminalSendKey`.
 
 ### Excel & DataTable Automation
-- Open workbooks with `excelOpen --readOnly false   excelApp=value` (unquoted boolean).
-- Read ranges into DataTable with `excelGetTable` or `excelReadRange`.
-- Obtain row count using `getDataTableRowCount --datatable "${table}" count=value`.
+- Open workbooks with `excelOpen --file "${filePath}"   excelApp=value` — confirmed IBM docs 30.0.x syntax (`--file` not `--path`, no `--readOnly`).
+- Read ranges into DataTable with `excelGetTable --file ${excelApp} --getfirstsheet --entiretable --hasheaders   tableData=value rows=rowCount`.
+- Row count returned directly by `excelGetTable rows=rowCount` — no separate row-count command needed.
 - To delete rows from Excel, use the in-memory pattern (`excelGetTable` → `deleteRows` → `excelCreateFromDataTable` → `excelSave`).
-- Always close Excel handles in `Cleanup` using `excelClose --application "${excelApp}"` (guarded with `Is_Not_Empty`).
+- Always close Excel handles in `Cleanup` guarded with `Is_Null` check: `if --left ${excelApp} --operator "Is_Null" --negate` then `excelClose --file ${excelApp}`. `Is_Not_Empty` and `Equal_To ""` are NOT valid operators in Studio 30.0.3.
 
 ### Databases & Queues
 - **Databases:** Use `dbConnect` with provider (`SqlServer`, `Oracle`, `PostgreSQL`, `MySQL`, `DB2`, `ODBC`) or embedded `sqliteConnect`. Always use parameterized queries via `--parameters "{\"key\":\"${val}\"}"` in `dbQuery` to prevent SQL injection.
@@ -254,7 +256,7 @@ Before writing the final WAL text source, verify:
 - [ ] `logMessage` at the start (`→ SubName: start`) and end (`← SubName: done`) of each subroutine
 - [ ] Arithmetic uses `evaluate --expression "..." var=value` (not `setVar` with an expression)
 - [ ] `incrementVar` / `decrementVar` uses `--number ${n}` without quotes
-- [ ] `setVar --name "varName"` uses a **literal name string**, never `"${varName}"`
+- [ ] `setVar --name ${varName}` — use `${}` without surrounding quotes; `setVar --name "varName"` (quoted literal string) is the wrong form and assigns to a phantom variable named `varName`
 - [ ] Booleans in parameters are unquoted literals (`--readOnly false`, `--ssl true`, `--ascending true`)
 - [ ] Do NOT include `*30.0.3.0` in the `.wal.txt` — the version suffix is appended by `wal_generator.py` from the template binary
 
@@ -299,7 +301,7 @@ Once the log output is available:
 | `Unknown command: xyz` | Invalid command name | Replace with correct command from `commands_kb.md` |
 | `Parameter 'foo' not found` | Wrong parameter name | Check exact param name in `commands_kb.md` |
 | `Cannot convert 'value' to Boolean` | Quoted Boolean e.g. `--readOnly "true"` | Remove quotes: `--readOnly true` |
-| `NullReferenceException` in a sub | Uninitialised handle (e.g. `excelClose ""`) | Guard with `Is_Not_Empty` check |
+| `NullReferenceException` in a sub | Uninitialised handle (e.g. `excelClose ""`) | Guard with `Is_Null --negate`: `if --left ${handle} --operator "Is_Null" --negate` |
 | `Variable 'x' not declared` | Missing `defVar` | Add `defVar --name x --type T` at top |
 
 ### Step 3 — Read the script and apply the fix

@@ -1,0 +1,188 @@
+// =============================================================================
+// Bot:        2-Way Reconciliation Bot
+// Purpose:    Reconcile Source vs Target Excel file by key (col 1) and value
+//             (col 2). Output a report Excel file.
+// Inputs:     sourceFile  — default C:\RPA\source.xlsx
+//             targetFile  — default C:\RPA\target.xlsx
+//             reportFile  — default C:\RPA\report.xlsx
+// Outputs:    report.xlsx — columns: Key | Source Value | Target Value | Status
+//             Summary appended: Matched / Mismatch / Missing In Target / Source
+// Assumptions:
+//   Row 1 = header; data from row 2. Column 1 = key, Column 2 = value.
+//   Both files have sheet "Sheet1". Report file is created from scratch.
+// Commands validated against IBM RPA 30.0.x live documentation (659 commands).
+// =============================================================================
+
+defVar --name sourceFile --type String
+defVar --name targetFile --type String
+defVar --name reportFile --type String
+defVar --name sourceApp --type Excel
+defVar --name targetApp --type Excel
+defVar --name reportApp --type Excel
+defVar --name sourceTable --type DataTable
+defVar --name targetTable --type DataTable
+defVar --name reportTable --type DataTable
+defVar --name sourceRows --type Numeric
+defVar --name targetRows --type Numeric
+defVar --name sourceCols --type Numeric
+defVar --name targetCols --type Numeric
+defVar --name i --type Numeric
+defVar --name j --type Numeric
+defVar --name sourceKey --type String
+defVar --name sourceValue --type String
+defVar --name targetKey --type String
+defVar --name targetValue --type String
+defVar --name matchFound --type Boolean
+defVar --name fileOk --type Boolean
+defVar --name matchedCount --type Numeric
+defVar --name mismatchCount --type Numeric
+defVar --name missingInTargetCount --type Numeric
+defVar --name missingInSourceCount --type Numeric
+
+goSub --label Init
+goSub --label LoadSourceFile
+goSub --label LoadTargetFile
+goSub --label Reconcile
+goSub --label FlagMissingInSource
+goSub --label WriteReportSummary
+goSub --label Cleanup
+
+beginSub --name Init
+  logMessage --message "→ Init: start" --type "Info"
+  setVar --name "${sourceFile}" --value "C:\\Workspaces\\rpa_bot_generator\\samples\\2way_reconcile\\source.xlsx"
+  setVar --name "${targetFile}" --value "C:\\Workspaces\\rpa_bot_generator\\samples\\2way_reconcile\\target.xlsx"
+  setVar --name "${reportFile}" --value "C:\\Workspaces\\rpa_bot_generator\\samples\\2way_reconcile\\report.xlsx"
+  setVar --name "${matchedCount}" --value "0"
+  setVar --name "${mismatchCount}" --value "0"
+  setVar --name "${missingInTargetCount}" --value "0"
+  setVar --name "${missingInSourceCount}" --value "0"
+  logMessage --message "← Init: paths and counters initialised" --type "Info"
+endSub
+
+beginSub --name LoadSourceFile
+  onError --label ErrorHandler
+  logMessage --message "→ LoadSourceFile: start" --type "Info"
+  ifFile --file "${sourceFile}"   fileOk=value
+  if --left "${fileOk}" --operator "Equal_To" --right "False"
+    logMessage --message "Source file not found: ${sourceFile}" --type "Error"
+    goSub --label Cleanup
+    stopExecution
+  endIf
+  excelOpen --file "${sourceFile}"   sourceApp=value
+  excelGetTable --file ${sourceApp} --getfirstsheet --entiretable --hasheaders   sourceTable=value rows=sourceRows columns=sourceCols
+  if --left "${sourceRows}" --operator "Less_Than" --right "2"
+    logMessage --message "Source file has no data rows" --type "Error"
+    goSub --label Cleanup
+    stopExecution
+  endIf
+  logMessage --message "← LoadSourceFile: ${sourceRows} data rows loaded" --type "Info"
+endSub
+
+beginSub --name LoadTargetFile
+  onError --label ErrorHandler
+  logMessage --message "→ LoadTargetFile: start" --type "Info"
+  ifFile --file "${targetFile}"   fileOk=value
+  if --left "${fileOk}" --operator "Equal_To" --right "False"
+    logMessage --message "Target file not found: ${targetFile}" --type "Error"
+    goSub --label Cleanup
+    stopExecution
+  endIf
+  excelOpen --file "${targetFile}"   targetApp=value
+  excelGetTable --file ${targetApp} --getfirstsheet --entiretable --hasheaders   targetTable=value rows=targetRows columns=targetCols
+  if --left "${targetRows}" --operator "Less_Than" --right "1"
+    logMessage --message "Target file is empty — all source rows will be MISSING IN TARGET" --type "Warning"
+  endIf
+  logMessage --message "← LoadTargetFile: ${targetRows} data rows loaded" --type "Info"
+endSub
+
+beginSub --name Reconcile
+  onError --label ErrorHandler
+  logMessage --message "→ Reconcile: comparing ${sourceRows} source rows against ${targetRows} target rows" --type "Info"
+  addColumn --dataTable ${reportTable} --columnname "Key" --type String
+  addColumn --dataTable ${reportTable} --columnname "SourceValue" --type String
+  addColumn --dataTable ${reportTable} --columnname "TargetValue" --type String
+  addColumn --dataTable ${reportTable} --columnname "Status" --type String
+  for --variable ${i} --from 1 --to ${sourceRows} --step 1
+    mapTableRow --dataTable ${sourceTable} --row ${i} --mappings "number=1=${sourceKey},number=2=${sourceValue}"
+    setVar --name "${matchFound}" --value "False"
+    for --variable ${j} --from 1 --to ${targetRows} --step 1
+      mapTableRow --dataTable ${targetTable} --row ${j} --mappings "number=1=${targetKey},number=2=${targetValue}"
+      if --left "${targetKey}" --operator "Equal_To" --right "${sourceKey}"
+        setVar --name "${matchFound}" --value "True"
+        break
+      endIf
+    next
+    if --left "${matchFound}" --operator "Equal_To" --right "True"
+      if --left "${sourceValue}" --operator "Equal_To" --right "${targetValue}"
+        addRow --valuesmapping "Key=${sourceKey},SourceValue=${sourceValue},TargetValue=${targetValue},Status=MATCHED" --dataTable ${reportTable}
+        incrementVar --number ${matchedCount}
+      else
+        addRow --valuesmapping "Key=${sourceKey},SourceValue=${sourceValue},TargetValue=${targetValue},Status=MISMATCH" --dataTable ${reportTable}
+        incrementVar --number ${mismatchCount}
+        logMessage --message "MISMATCH key=${sourceKey} source=${sourceValue} target=${targetValue}" --type "Warning"
+      endIf
+    else
+      addRow --valuesmapping "Key=${sourceKey},SourceValue=${sourceValue},TargetValue=,Status=MISSING IN TARGET" --dataTable ${reportTable}
+      incrementVar --number ${missingInTargetCount}
+      logMessage --message "MISSING IN TARGET key=${sourceKey}" --type "Warning"
+    endIf
+  next
+  logMessage --message "← Reconcile: done" --type "Info"
+endSub
+
+beginSub --name FlagMissingInSource
+  onError --label ErrorHandler
+  logMessage --message "→ FlagMissingInSource: scanning ${targetRows} target rows" --type "Info"
+  for --variable ${i} --from 1 --to ${targetRows} --step 1
+    mapTableRow --dataTable ${targetTable} --row ${i} --mappings "number=1=${targetKey},number=2=${targetValue}"
+    setVar --name "${matchFound}" --value "False"
+    for --variable ${j} --from 1 --to ${sourceRows} --step 1
+      mapTableRow --dataTable ${sourceTable} --row ${j} --mappings "number=1=${sourceKey}"
+      if --left "${sourceKey}" --operator "Equal_To" --right "${targetKey}"
+        setVar --name "${matchFound}" --value "True"
+        break
+      endIf
+    next
+    if --left "${matchFound}" --operator "Equal_To" --right "False"
+      addRow --valuesmapping "Key=${targetKey},SourceValue=,TargetValue=${targetValue},Status=MISSING IN SOURCE" --dataTable ${reportTable}
+      incrementVar --number ${missingInSourceCount}
+      logMessage --message "MISSING IN SOURCE key=${targetKey}" --type "Warning"
+    endIf
+  next
+  logMessage --message "← FlagMissingInSource: done" --type "Info"
+endSub
+
+beginSub --name WriteReportSummary
+  onError --label ErrorHandler
+  logMessage --message "→ WriteReportSummary: writing report to ${reportFile}" --type "Info"
+  addRow --valuesmapping "Key=,SourceValue=,TargetValue=,Status=" --dataTable ${reportTable}
+  addRow --valuesmapping "Key=SUMMARY,SourceValue=,TargetValue=,Status=" --dataTable ${reportTable}
+  addRow --valuesmapping "Key=Matched,SourceValue=${matchedCount},TargetValue=,Status=" --dataTable ${reportTable}
+  addRow --valuesmapping "Key=Mismatch,SourceValue=${mismatchCount},TargetValue=,Status=" --dataTable ${reportTable}
+  addRow --valuesmapping "Key=Missing In Target,SourceValue=${missingInTargetCount},TargetValue=,Status=" --dataTable ${reportTable}
+  addRow --valuesmapping "Key=Missing In Source,SourceValue=${missingInSourceCount},TargetValue=,Status=" --dataTable ${reportTable}
+  excelReport --file "${reportFile}" --dataTable ${reportTable} --getfirstsheet --cell A1 --headers   reportApp=value
+  excelClose --file ${reportApp} --save
+  logMessage --message "RECONCILIATION COMPLETE matched=${matchedCount} mismatch=${mismatchCount} missingInTarget=${missingInTargetCount} missingInSource=${missingInSourceCount}" --type "Info"
+  logMessage --message "← WriteReportSummary: report saved to ${reportFile}" --type "Info"
+endSub
+
+beginSub --name ErrorHandler
+  logMessage --message "→ ErrorHandler: ${rpa:errorMessage}" --type "Error"
+  goSub --label Cleanup
+  stopExecution
+endSub
+
+beginSub --name Cleanup
+  logMessage --message "→ Cleanup: closing workbooks" --type "Info"
+  if --left ${sourceApp} --operator "Is_Null" --negate
+    excelClose --file ${sourceApp}
+  endIf
+  if --left ${targetApp} --operator "Is_Null" --negate
+    excelClose --file ${targetApp}
+  endIf
+  if --left ${reportApp} --operator "Is_Null" --negate
+    excelClose --file ${reportApp} --save
+  endIf
+  logMessage --message "← Cleanup: done" --type "Info"
+endSub
