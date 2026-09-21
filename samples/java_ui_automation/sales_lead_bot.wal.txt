@@ -1,0 +1,76 @@
+defVar --name leads --type DataTable
+defVar --name row_count --type Numeric
+defVar --name column_count --type Numeric
+defVar --name row_iterator --type Numeric --value 1
+defVar --name first_name --type String
+defVar --name last_name --type String
+defVar --name job_title --type String
+defVar --name company --type String
+defVar --name email --type String
+defVar --name phone --type String
+defVar --name client_address --type String
+defVar --name client_city --type String
+defVar --name client_state --type String
+defVar --name client_zipcode --type String
+defVar --name interest --type String
+defVar --name followup --type String
+defVar --name csvPath --type String --value "C:\\Workspaces\\rpa_bot_generator\\samples\\java_ui_automation\\SalesLeads.csv"
+defVar --name windowInstance --type Window
+defVar --name caseNumber --type String
+
+goSub --label Init
+goSub --label ProcessLeads
+goSub --label Cleanup
+
+beginSub --name Init
+	logMessage --message "→ Init: start" --type "Info"
+	readCSV --filepath "${csvPath}" --delimiter "," --hasheaders  --missingfieldaction "ParseError" leads=value row_count=rows column_count=columns
+	findWindow --title "Focus Corp - Sales Lead ManagementSystem (SLMS)- Update" windowInstance=value
+	attachWindow --window ${windowInstance}
+	logMessage --message "← Init: done" --type "Info"
+endSub
+
+beginSub --name ProcessLeads
+	logMessage --message "→ ProcessLeads: start" --type "Info"
+	while --left "${row_count}" --operator "Greater_Than_Equal_To" --right "${row_iterator}"
+		mapTableRow --dataTable ${leads} --row ${row_iterator} --mappings "name=First Name=${first_name},name=Last Name=${last_name},name=Job Title=${job_title},name=Company=${company},name=email=${email},name=phone=${phone},name=Client Address=${client_address},name=Client City=${client_city},name=Client State=${client_state},name=Client Zipcode=${client_zipcode},name=Area of Interest=${interest},name=Followup Requested=${followup}"
+		logMessage --message "Processing Lead ${row_iterator}: ${first_name} ${last_name}" --type "Info"
+		goSub --label InsertLeadData
+		evaluate --expression "${row_iterator} + 1" row_iterator=value
+	endWhile
+	logMessage --message "← ProcessLeads: done" --type "Info"
+endSub
+
+beginSub --name InsertLeadData
+	logMessage --message "→ InsertLeadData: start" --type "Info"
+	findWindow --title "Focus Corp - Sales Lead ManagementSystem (SLMS)- Update" windowInstance=value
+	attachWindow --window ${windowInstance}
+	
+	// Read generated Case Number
+	getValue --selector "XPath" --xpath "/root/root_pane[1]/layered_pane[1]/panel[1]/panel[1]/text[1]" caseNumber=value
+	logMessage --message "Current Case Number: ${caseNumber}" --type "Info"
+	
+	// Set UI Form Fields mapped from Accessibility Tree
+	setValue --value "${first_name}" --setValueType "Automatic" --algorithm "Default" --matchcondition "Equals" --simulatehuman  --selector "XPath" --xpath "/root/root_pane[1]/layered_pane[1]/panel[1]/panel[1]/text[2]"
+	setValue --value "${last_name}" --setValueType "Automatic" --algorithm "Default" --matchcondition "Equals" --simulatehuman  --selector "XPath" --xpath "/root/root_pane[1]/layered_pane[1]/panel[1]/panel[1]/text[3]"
+	setValue --value "${job_title}" --setValueType "Automatic" --algorithm "Default" --matchcondition "Equals" --simulatehuman  --selector "XPath" --xpath "/root/root_pane[1]/layered_pane[1]/panel[1]/panel[1]/text[4]"
+	setValue --value "${company}" --setValueType "Automatic" --algorithm "Default" --matchcondition "Equals" --simulatehuman  --selector "XPath" --xpath "/root/root_pane[1]/layered_pane[1]/panel[1]/panel[1]/text[5]"
+	setValue --value "${email}" --setValueType "Automatic" --algorithm "Default" --matchcondition "Equals" --simulatehuman  --selector "XPath" --xpath "/root/root_pane[1]/layered_pane[1]/panel[1]/panel[1]/text[6]"
+	setValue --value "${phone}" --setValueType "Automatic" --algorithm "Default" --matchcondition "Equals" --simulatehuman  --selector "XPath" --xpath "/root/root_pane[1]/layered_pane[1]/panel[1]/panel[1]/text[7]"
+	setValue --value "${client_address}" --setValueType "Automatic" --algorithm "Default" --matchcondition "Equals" --simulatehuman  --selector "XPath" --xpath "/root/root_pane[1]/layered_pane[1]/panel[1]/panel[1]/text[8]"
+	setValue --value "${client_state}" --setValueType "Automatic" --algorithm "Default" --matchcondition "Equals" --simulatehuman  --selector "XPath" --xpath "/root/root_pane[1]/layered_pane[1]/panel[1]/panel[1]/text[9]"
+	setValue --value "${client_zipcode}" --setValueType "Automatic" --algorithm "Default" --matchcondition "Equals" --simulatehuman  --selector "XPath" --xpath "/root/root_pane[1]/layered_pane[1]/panel[1]/panel[1]/text[10]"
+	setValue --value "${interest}" --setValueType "Automatic" --algorithm "Default" --matchcondition "Equals" --simulatehuman  --selector "XPath" --xpath "/root/root_pane[1]/layered_pane[1]/panel[1]/panel[1]/text[11]"
+	setValue --value "${followup}" --setValueType "Automatic" --algorithm "Default" --matchcondition "Equals" --simulatehuman  --selector "XPath" --xpath "/root/root_pane[1]/layered_pane[1]/panel[1]/panel[1]/text[12]"
+	
+	// Click ADD Button
+	click --selector "XPath" --controlsimilarity 100 --simulatehuman  --xpath "/root/root_pane[1]/layered_pane[1]/panel[1]/panel[1]/push_button[1]"
+	delay --timeout 00:00:01
+	logMessage --message "← InsertLeadData: done" --type "Info"
+endSub
+
+beginSub --name Cleanup
+	logMessage --message "→ Cleanup: start" --type "Info"
+	logMessage --message "All leads processed successfully." --type "Info"
+	logMessage --message "← Cleanup: done" --type "Info"
+endSub

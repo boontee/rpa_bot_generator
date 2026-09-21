@@ -1,0 +1,13 @@
+﻿First Name,Last Name,Job Title,Company,email,phone,Client Address,Client City,Client State,Client Zipcode,Area of Interest,Followup Requested
+Paul,Pacholski,Consultant,Hannibal Enterprises,pacholsk@hannibalent.com,905-883-8234,119 Barkley Drive,Thornhill,ON,L3T-6N2,Auto ML,Yes
+Dave,Wakeman,Director IT,Wakeman Aviation Enterprises,dwakeman@us.ibm.com,515-555-4981,9321 Fleur Drive,Des Moines,IA,50309,Robotic Process Automation,Yes
+Pramod,Prince,IT Developer,United Third Bank,pramod@unitedthirdbank.com,612-555-2341,332 Hennipen Ave,Minneapolis,MN,55404,Microservices,No
+Otto,Pilot,CIO,"Autonomous Cars, Inc.",otto@autocars.com,669-555-8221,9876 Infinite Loop,San Joes,CA,95002,Autonomous Cars,Yes
+Stu,Liebowitz,Vice President,Craymore Computers,stu@craymore.com,512-555-1488,11501 Burnet Rd,Austin,TX,78702,Business Process Management,Yes
+Sheri,Williams,Director of Operations,Piston Manufacturing,sheri@pistonmfg.com,313-555-2991,503 Fasbinder Parkway,Detroit,MI,48202,IT Service Management,No
+Monika,Datar,Data Scientist,Covfefe Pharmaceuticals,monika@covfefepharma.com,212-555-5591,51 Astor Place,New York,NY,10026,Machine Learning,Yes
+Jeff,Goodhue,Director of Programming,Dojo Networks,jeff@dojo.com,424-555-4398,33912 Sunset Blvd,Culver City,CA,90233,Content,Yes
+Satoshi,Nakamoto,Lead Developer,Programming Anonymous,satoshi@coinbit.com,929-555-2358,3928 Crypto Lane,Seattle,WA,98114,Case,No
+Timothy,McGee,Data Scientist,Coach K Communications,tim@coachk.com,919-555-0720,928 hoopsville Lane,Raleigh,NC,27676,Data Science,Yes
+Josh,Bockman,Director of IT,HealthFirst Patient Services,josh@healthfirst.com,617-555-1103,321 King St,Boston,MA,2132,Business Rules,Yes
+Stuart,Jones,Enterprise Architect,Wessex Financial Services,stuart@wessex.com,630-555-9227,71 S Wacker,Chicago,IL,60624,Cloud,No

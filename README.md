@@ -13,6 +13,11 @@ clean in IBM RPA Studio before the next subroutine is started.
 2. Describe the bot you want to build (automation target, inputs, outputs).
 3. Bob will walk you through the full iterative workflow automatically.
 
+### Video Overview & Demo
+Watch the demo: [![IBM RPA Bot Generator Demo](https://img.youtube.com/vi/UFZJ4vEhbRI/0.jpg)](https://www.youtube.com/watch?v=UFZJ4vEhbRI)
+
+Direct link: [https://www.youtube.com/watch?v=UFZJ4vEhbRI](https://www.youtube.com/watch?v=UFZJ4vEhbRI)
+
 ---
 
 ## How It Works
