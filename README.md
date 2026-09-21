@@ -137,7 +137,7 @@ log and highlights any `ERROR`, `Exception`, `ParseException`, or `ProtoExceptio
 lines. Bob calls this automatically after every Studio open — you do not need to
 read the log manually unless the 3-attempt escalation is triggered.
 
-Log location (read manually if needed):
+Log location (default, configurable via `RPA_STUDIO_LOG`, `STUDIO_LOG_PATH`, or `STUDIO_LOG` environment variables):
 ```
 C:\Users\Administrator\AppData\Local\IBM Robotic Process Automation\Studio.log
 ```

@@ -7,7 +7,7 @@ import * as readline from "readline";
 import * as path from "path";
 import * as os from "os";
 
-// Default log path — can be overridden via RPA_STUDIO_LOG env var
+// Resolve log path dynamically on access: supports RPA_STUDIO_LOG, STUDIO_LOG_PATH, or STUDIO_LOG env vars
 const DEFAULT_LOG_PATH = path.join(
   os.homedir(),
   "AppData",
@@ -16,7 +16,14 @@ const DEFAULT_LOG_PATH = path.join(
   "Studio.log"
 );
 
-const LOG_PATH = process.env.RPA_STUDIO_LOG ?? DEFAULT_LOG_PATH;
+function getLogPath(): string {
+  return (
+    process.env.RPA_STUDIO_LOG ||
+    process.env.STUDIO_LOG_PATH ||
+    process.env.STUDIO_LOG ||
+    DEFAULT_LOG_PATH
+  );
+}
 
 const server = new McpServer({ name: "rpa-studio-log", version: "0.1.0" });
 
@@ -45,12 +52,13 @@ server.registerTool(
     }),
   },
   async ({ lines, filter }) => {
-    if (!fs.existsSync(LOG_PATH)) {
+    const logPath = getLogPath();
+    if (!fs.existsSync(logPath)) {
       return {
         content: [
           {
             type: "text",
-            text: `Log file not found: ${LOG_PATH}\n\nSet the RPA_STUDIO_LOG environment variable to override the path.`,
+            text: `Log file not found: ${logPath}\n\nSet the RPA_STUDIO_LOG, STUDIO_LOG_PATH, or STUDIO_LOG environment variable to override the path.`,
           },
         ],
         isError: true,
@@ -58,7 +66,7 @@ server.registerTool(
     }
 
     try {
-      const tail = await readTailLines(LOG_PATH, lines);
+      const tail = await readTailLines(logPath, lines);
 
       // Extract error lines for quick summary
       const errorPattern = /error|exception|not found|invalid wire/i;
@@ -78,7 +86,7 @@ server.registerTool(
         displayLines = tail.filter((l) => l.toLowerCase().includes(lowerFilter));
         output += `=== FILTERED (containing "${filter}") — ${displayLines.length} of ${tail.length} lines ===\n`;
       } else {
-        output += `=== LAST ${tail.length} LINES of ${LOG_PATH} ===\n`;
+        output += `=== LAST ${tail.length} LINES of ${logPath} ===\n`;
       }
 
       output += displayLines.join("\n");
@@ -106,12 +114,13 @@ server.registerTool(
     inputSchema: z.object({}),
   },
   async () => {
-    const exists = fs.existsSync(LOG_PATH);
+    const logPath = getLogPath();
+    const exists = fs.existsSync(logPath);
     return {
       content: [
         {
           type: "text",
-          text: `Log path : ${LOG_PATH}\nExists   : ${exists}\nOverride : set RPA_STUDIO_LOG env var to change`,
+          text: `Log path : ${logPath}\nExists   : ${exists}\nOverride : set RPA_STUDIO_LOG, STUDIO_LOG_PATH, or STUDIO_LOG env var to change`,
         },
       ],
     };
@@ -140,7 +149,7 @@ async function readTailLines(filePath: string, n: number): Promise<string[]> {
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error(`rpa-studio-log running — watching: ${LOG_PATH}`);
+  console.error(`rpa-studio-log running — watching: ${getLogPath()}`);
 }
 
 main().catch((err) => {

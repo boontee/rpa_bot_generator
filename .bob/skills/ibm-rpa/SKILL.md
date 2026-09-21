@@ -269,7 +269,7 @@ When the user reports a script error (Studio parse error, runtime error, or "err
 **Always read the Studio log before looking at the script.** The log contains the exact error
 message, line number, and context that makes the fix unambiguous.
 
-Log path:
+Log path (default, can be overridden via `RPA_STUDIO_LOG`, `STUDIO_LOG_PATH`, or `STUDIO_LOG` environment variable):
 ```
 C:\Users\Administrator\AppData\Local\IBM Robotic Process Automation\Studio.log
 ```
